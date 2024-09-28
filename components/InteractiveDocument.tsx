@@ -77,14 +77,14 @@ const CursorSpace = React.forwardRef<HTMLSpanElement, {
         contentEditable
         suppressContentEditableWarning
         className={`inline-block min-w-[1ch] outline-none ${
-          isFocused ? 'bg-transparent' : '' // Changed 'bg-black' to 'bg-transparent'
-        } ${
-          showSolidCursor && !isFocused && !text ? 'border-r-2 border-white' : ''
+          isFocused ? 'bg-transparent' : ''
         } ${isSeparator ? 'w-full' : ''}`}
         onInput={(e) => setText(e.currentTarget.textContent || '')}
         onKeyDown={handleKeyDown}
         onFocus={onFocus}
-      />
+      >
+        {showSolidCursor && !isFocused && !text && '|'}
+      </span>
     </span>
   )
 })
@@ -480,7 +480,7 @@ const InteractiveDocument: React.FC = () => {
     if (focusParagraphId) {
       const paragraph = paragraphs.find(p => p.id === focusParagraphId)
       if (paragraph && paragraph.sentences.length > 0) {
-        setFocusedCursorSpaceId(`${focusParagraphId}-0`)
+        setFocusedCursorSpaceId(`${paragraph.id}-0`) // Reverted focus to cursor space 1
       }
       setFocusParagraphId(null)
     }
