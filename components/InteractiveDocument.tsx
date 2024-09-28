@@ -298,6 +298,51 @@ const ParagraphComponent: React.FC<{
   const [isFirstCursorSpaceHovered, setIsFirstCursorSpaceHovered] = useState(false)
   const [isEndingSpaceHovered, setIsEndingSpaceHovered] = useState(false)
 
+  // Add refs for managing hover delays
+  const enterTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const leaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Added throttle reference to track the last execution time
+  const lastSeparatorEnterRef = useRef<number>(0)
+
+  const handleLastCursorMouseEnter = () => {
+    // Clear any existing leave timeout
+    if (leaveTimeoutRef.current) {
+      clearTimeout(leaveTimeoutRef.current)
+      leaveTimeoutRef.current = null
+    }
+    // Set a timeout to set the hover state after 200ms
+    enterTimeoutRef.current = setTimeout(() => {
+      setIsEndingSpaceHovered(true)
+      enterTimeoutRef.current = null
+    }, 300)
+  }
+
+  const handleLastCursorMouseLeave = () => {
+    // Clear any existing enter timeout
+    if (enterTimeoutRef.current) {
+      clearTimeout(enterTimeoutRef.current)
+      enterTimeoutRef.current = null
+    }
+    // Set a timeout to unset the hover state after 200ms
+    leaveTimeoutRef.current = setTimeout(() => {
+      setIsEndingSpaceHovered(false)
+      leaveTimeoutRef.current = null
+    }, 200)
+  }
+
+  useEffect(() => {
+    // Cleanup timeouts on unmount
+    return () => {
+      if (enterTimeoutRef.current) {
+        clearTimeout(enterTimeoutRef.current)
+      }
+      if (leaveTimeoutRef.current) {
+        clearTimeout(leaveTimeoutRef.current)
+      }
+    }
+  }, [])
+
   // Removed unused 'e' parameter from handleSentenceClick
   const handleSentenceClick = (sentenceId: string, index: number) => { // Removed 'e'
     const currentTime = new Date().getTime()
@@ -339,6 +384,11 @@ const ParagraphComponent: React.FC<{
   }
 
   const handleSeparatorEnter = (text: string, position: 'before' | 'after') => {
+    const now = Date.now()
+    if (now - lastSeparatorEnterRef.current < 500) {
+      return // Ignore if the function was called within the last 500ms
+    }
+    lastSeparatorEnterRef.current = now
     const index = position === 'before' ? paragraphIndex : paragraphIndex + 1
     const newParagraphId = addParagraph(index, text)
     setFocusParagraphId(newParagraphId)
@@ -408,7 +458,20 @@ const ParagraphComponent: React.FC<{
               isFocused={focusedCursorSpaceId === `${paragraph.id}-${index}`}
               isFirst={false}
               isLast={index === paragraph.sentences.length - 1} // Added 'isLast' prop
-              showSolidCursor={hoveredSentenceIndex === index}
+              showSolidCursor={
+                hoveredSentenceIndex === index || 
+                (isEndingSpaceHovered && index === paragraph.sentences.length - 1)
+              }
+              onMouseEnter={() => {
+                if (index === paragraph.sentences.length - 1) {
+                  handleLastCursorMouseEnter()
+                }
+              }}
+              onMouseLeave={() => {
+                if (index === paragraph.sentences.length - 1) {
+                  handleLastCursorMouseLeave()
+                }
+              }}
             />
           </React.Fragment>
         ))}
