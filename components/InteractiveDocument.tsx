@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 
@@ -189,84 +189,71 @@ const ParagraphSeparator: React.FC<{
   onFocus: () => void
   isFocused: boolean
   isLast: boolean
-}> = ({ id, onEnter, onFocus, isFocused, isLast }) => {
+}> = React.memo(({ id, onEnter, onFocus, isFocused, isLast }) => {
   const [isHovered, setIsHovered] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const cursorSpaceRef = useRef<HTMLSpanElement>(null)
-  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const separatorRef = useRef<HTMLDivElement>(null)
 
-  const handleMouseEnter = () => {
-    if (isFocused) return // Prevent hover effect if focused
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current)
-      hoverTimeoutRef.current = null
+  const handleMouseEnter = useCallback(() => {
+    if (!isFocused) {
+      setIsHovered(true)
+      setIsExpanded(true)
     }
-    setIsHovered(true)
-    setIsExpanded(true)
-  }
+  }, [isFocused])
 
-  const handleMouseLeave = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current)
-    }
-    hoverTimeoutRef.current = setTimeout(() => {
+  const handleMouseLeave = useCallback(() => {
+    if (!isFocused) {
       setIsHovered(false)
-      if (!isFocused) {
-        setIsExpanded(false)
-      }
-      hoverTimeoutRef.current = null
-    }, 300)
-  }
-
-  const handleFocus = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current)
-      hoverTimeoutRef.current = null
+      setIsExpanded(false)
     }
+  }, [isFocused])
+
+  const handleFocus = useCallback(() => {
     onFocus()
     setIsHovered(true)
     setIsExpanded(true)
-  }
-
-  const handleClick = () => {
-    if (cursorSpaceRef.current) {
-      cursorSpaceRef.current.focus()
-    }
-    onFocus()
-    setIsHovered(true)
-    setIsExpanded(true)
-  }
+  }, [onFocus])
 
   useEffect(() => {
-    return () => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current)
+    const handleClickOutside = (event: MouseEvent) => {
+      if (separatorRef.current && !separatorRef.current.contains(event.target as Node)) {
+        setIsExpanded(false)
+        setIsHovered(false)
       }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [])
 
+  useEffect(() => {
+    if (isFocused) {
+      setIsExpanded(true)
+    }
+  }, [isFocused])
+
   return (
     <div 
-      className={`w-full relative flex items-center cursor-text transition-all duration-200 ease-in-out ${
+      ref={separatorRef}
+      className={`w-full relative flex items-center cursor-text transition-all duration-300 ease-in-out mt-[1px] ${
         isExpanded ? 'h-8' : 'h-1'
       }`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      onClick={handleClick}
     >
       {!isFocused && (
         <div 
-          className={`absolute left-0 w-1/3 h-1 bg-white transition-all duration-200 ease-in-out ${
-            isHovered && !isFocused ? 'opacity-100' : 'opacity-0'
+          className={`absolute left-0 w-1/3 h-1 bg-white transition-opacity duration-300 ease-in-out ${
+            isHovered ? 'opacity-100' : 'opacity-0'
           }`} 
         />
       )}
       <CursorSpace
         id={id}
-        onEnter={(text) => {
-          onEnter(text)
-          setIsExpanded(false)
-        }}
+        onEnter={onEnter}
         onFocus={handleFocus}
         isFocused={isFocused}
         isFirst={true}
@@ -277,7 +264,9 @@ const ParagraphSeparator: React.FC<{
       />
     </div>
   )
-}
+})
+
+ParagraphSeparator.displayName = 'ParagraphSeparator'
 
 // Removed 'isFirst' from ParagraphComponent props
 const ParagraphComponent: React.FC<{
@@ -307,6 +296,7 @@ const ParagraphComponent: React.FC<{
   const [lastClickTime, setLastClickTime] = useState<number>(0)
   const [hoveredSentenceIndex, setHoveredSentenceIndex] = useState<number | null>(null)
   const [isFirstCursorSpaceHovered, setIsFirstCursorSpaceHovered] = useState(false)
+  const [isEndingSpaceHovered, setIsEndingSpaceHovered] = useState(false)
 
   // Removed unused 'e' parameter from handleSentenceClick
   const handleSentenceClick = (sentenceId: string, index: number) => { // Removed 'e'
@@ -355,17 +345,35 @@ const ParagraphComponent: React.FC<{
   }
 
   const handleParagraphClick = (e: React.MouseEvent<HTMLParagraphElement>) => {
-    // Check if the click occurred in the Ending Paragraph Space
     if (e.target === e.currentTarget) {
       const lastCursorSpaceId = `${paragraph.id}-${paragraph.sentences.length - 1}`
       setFocusedCursorSpaceId(lastCursorSpaceId)
+      // Force focus on the last CursorSpace
+      const lastCursorSpace = document.getElementById(lastCursorSpaceId)
+      if (lastCursorSpace) {
+        const contentEditableSpan = lastCursorSpace.querySelector('span[contenteditable]')
+        if (contentEditableSpan) {
+          (contentEditableSpan as HTMLElement).focus()
+        }
+      }
     }
+  }
+
+  const handleParagraphMouseMove = (e: React.MouseEvent<HTMLParagraphElement>) => {
+    const { clientX, currentTarget } = e
+    const { right, width } = currentTarget.getBoundingClientRect()
+    const isHoveringEndingSpace = right - clientX < width * 0.1 // Adjust this value as needed
+    setIsEndingSpaceHovered(isHoveringEndingSpace)
   }
 
   return (
     <>
-      {/* Removed the 'separator-before' ParagraphSeparator to eliminate duplication */}
-      <p className="inline-block" onClick={handleParagraphClick}>
+      <p 
+        className="inline-block relative my-[1px]" // Added tiny vertical margin
+        onClick={handleParagraphClick}
+        onMouseMove={handleParagraphMouseMove}
+        onMouseLeave={() => setIsEndingSpaceHovered(false)}
+      >
         <CursorSpace
           id={`${paragraph.id}-start`}
           onEnter={(text) => handleCursorSpaceEnter(text, 0)}
@@ -400,6 +408,12 @@ const ParagraphComponent: React.FC<{
             />
           </React.Fragment>
         ))}
+        {isEndingSpaceHovered && (
+          <span 
+            className="absolute right-0 top-0 bottom-0 w-1 bg-white"
+            style={{ cursor: 'text' }}
+          />
+        )}
       </p>
       <ParagraphSeparator
         id={`separator-after-${paragraph.id}`}
@@ -480,7 +494,6 @@ const InteractiveDocument: React.FC = () => {
           {title}
         </h1>
 
-        {/* Add topmost ParagraphSeparator */}
         <ParagraphSeparator
           id={`separator-before-first`}
           onEnter={(text) => addParagraph(0, text)}
