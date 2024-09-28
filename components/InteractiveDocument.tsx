@@ -290,6 +290,7 @@ const ParagraphComponent: React.FC<{
   isLast: boolean
   addParagraph: (index: number, text: string) => void
   paragraphIndex: number
+  setFocusParagraphId: (id: string | null) => void
 }> = ({ 
   paragraph, 
   updateParagraph, 
@@ -299,7 +300,8 @@ const ParagraphComponent: React.FC<{
   setFocusedCursorSpaceId,
   isLast,
   addParagraph,
-  paragraphIndex
+  paragraphIndex,
+  setFocusParagraphId
 }) => {
   const [lastClickedSentenceId, setLastClickedSentenceId] = useState<string | null>(null)
   const [lastClickTime, setLastClickTime] = useState<number>(0)
@@ -348,13 +350,22 @@ const ParagraphComponent: React.FC<{
 
   const handleSeparatorEnter = (text: string, position: 'before' | 'after') => {
     const index = position === 'before' ? paragraphIndex : paragraphIndex + 1
-    addParagraph(index, text)
+    const newParagraphId = addParagraph(index, text)
+    setFocusParagraphId(newParagraphId)
+  }
+
+  const handleParagraphClick = (e: React.MouseEvent<HTMLParagraphElement>) => {
+    // Check if the click occurred in the Ending Paragraph Space
+    if (e.target === e.currentTarget) {
+      const lastCursorSpaceId = `${paragraph.id}-${paragraph.sentences.length - 1}`
+      setFocusedCursorSpaceId(lastCursorSpaceId)
+    }
   }
 
   return (
     <>
       {/* Removed the 'separator-before' ParagraphSeparator to eliminate duplication */}
-      <p className="inline-block">
+      <p className="inline-block" onClick={handleParagraphClick}>
         <CursorSpace
           id={`${paragraph.id}-start`}
           onEnter={(text) => handleCursorSpaceEnter(text, 0)}
@@ -425,6 +436,7 @@ const InteractiveDocument: React.FC = () => {
   ])
   const [editingSentenceId, setEditingSentenceId] = useState<string | null>(null)
   const [focusedCursorSpaceId, setFocusedCursorSpaceId] = useState<string | null>(null)
+  const [focusParagraphId, setFocusParagraphId] = useState<string | null>(null)
 
   const updateParagraph = (updatedParagraph: Paragraph) => {
     setParagraphs((prevParagraphs) =>
@@ -432,17 +444,29 @@ const InteractiveDocument: React.FC = () => {
     )
   }
 
-  const addParagraph = (index: number, text: string) => {
+  const addParagraph = (index: number, text: string): string => {
+    const newParagraphId = Date.now().toString()
     const newParagraph: Paragraph = {
-      id: Date.now().toString(),
-      sentences: [{ id: Date.now().toString(), text }],
+      id: newParagraphId,
+      sentences: [{ id: `${newParagraphId}-1`, text }],
     }
     setParagraphs((prevParagraphs) => {
       const newParagraphs = [...prevParagraphs]
       newParagraphs.splice(index, 0, newParagraph)
       return newParagraphs
     })
+    return newParagraphId
   }
+
+  useEffect(() => {
+    if (focusParagraphId) {
+      const paragraph = paragraphs.find(p => p.id === focusParagraphId)
+      if (paragraph && paragraph.sentences.length > 0) {
+        setFocusedCursorSpaceId(`${focusParagraphId}-0`)
+      }
+      setFocusParagraphId(null)
+    }
+  }, [paragraphs, focusParagraphId])
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -477,7 +501,7 @@ const InteractiveDocument: React.FC = () => {
             isLast={index === paragraphs.length - 1}
             addParagraph={addParagraph}
             paragraphIndex={index}
-            // isFirst={index === 0} // Removed 'isFirst' prop
+            setFocusParagraphId={setFocusParagraphId}
           />
         ))}
       </div>
