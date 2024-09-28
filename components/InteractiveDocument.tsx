@@ -188,7 +188,7 @@ const ParagraphSeparator: React.FC<{
   onEnter: (text: string) => void
   onFocus: () => void
   isFocused: boolean
-  isLast: boolean // Made 'isLast' required
+  isLast: boolean
 }> = ({ id, onEnter, onFocus, isFocused, isLast }) => {
   const [isHovered, setIsHovered] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
@@ -196,27 +196,35 @@ const ParagraphSeparator: React.FC<{
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleMouseEnter = () => {
+    if (isFocused) return // Prevent hover effect if focused
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current)
+      hoverTimeoutRef.current = null
     }
-    hoverTimeoutRef.current = setTimeout(() => {
-      setIsHovered(true)
-      setIsExpanded(true)
-    }, 300) // 300ms delay before expanding
+    setIsHovered(true)
+    setIsExpanded(true)
   }
 
   const handleMouseLeave = () => {
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current)
     }
-    setIsHovered(false)
-    if (!isFocused) {
-      setIsExpanded(false)
-    }
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsHovered(false)
+      if (!isFocused) {
+        setIsExpanded(false)
+      }
+      hoverTimeoutRef.current = null
+    }, 300)
   }
 
   const handleFocus = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current)
+      hoverTimeoutRef.current = null
+    }
     onFocus()
+    setIsHovered(true)
     setIsExpanded(true)
   }
 
@@ -225,6 +233,7 @@ const ParagraphSeparator: React.FC<{
       cursorSpaceRef.current.focus()
     }
     onFocus()
+    setIsHovered(true)
     setIsExpanded(true)
   }
 
@@ -253,7 +262,7 @@ const ParagraphSeparator: React.FC<{
         />
       )}
       <CursorSpace
-        id={id} // Ensures 'id' is passed
+        id={id}
         onEnter={(text) => {
           onEnter(text)
           setIsExpanded(false)
@@ -261,7 +270,7 @@ const ParagraphSeparator: React.FC<{
         onFocus={handleFocus}
         isFocused={isFocused}
         isFirst={true}
-        isLast={isLast} // Passed 'isLast' prop as required
+        isLast={isLast}
         showSolidCursor={false}
         isSeparator={true}
         ref={cursorSpaceRef}
@@ -344,13 +353,7 @@ const ParagraphComponent: React.FC<{
 
   return (
     <>
-      <ParagraphSeparator
-        id={`separator-before-${paragraph.id}`}
-        onEnter={(text) => handleSeparatorEnter(text, 'before')}
-        onFocus={() => setFocusedCursorSpaceId(`separator-before-${paragraph.id}`)}
-        isFocused={focusedCursorSpaceId === `separator-before-${paragraph.id}`}
-        isLast={false}
-      />
+      {/* Removed the 'separator-before' ParagraphSeparator to eliminate duplication */}
       <p className="inline-block">
         <CursorSpace
           id={`${paragraph.id}-start`}
@@ -452,6 +455,16 @@ const InteractiveDocument: React.FC = () => {
         >
           {title}
         </h1>
+
+        {/* Add topmost ParagraphSeparator */}
+        <ParagraphSeparator
+          id={`separator-before-first`}
+          onEnter={(text) => addParagraph(0, text)}
+          onFocus={() => setFocusedCursorSpaceId(`separator-before-first`)}
+          isFocused={focusedCursorSpaceId === `separator-before-first`}
+          isLast={false}
+        />
+
         {paragraphs.map((paragraph, index) => (
           <ParagraphComponent
             key={paragraph.id}
