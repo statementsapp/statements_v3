@@ -238,8 +238,8 @@ const ParagraphSeparator: React.FC<{
   return (
     <div 
       ref={separatorRef}
-      className={`w-full relative flex items-center cursor-text transition-all duration-300 ease-in-out mt-[1px] ${
-        isExpanded ? 'h-8' : 'h-1'
+      className={`w-full relative flex items-center cursor-text transition-all duration-300 ease-in-out ${
+        isExpanded ? 'h-8 mt-[1px] mb-[1px]' : 'h-1 my-[1px]'
       }`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -366,13 +366,17 @@ const ParagraphComponent: React.FC<{
     setIsEndingSpaceHovered(isHoveringEndingSpace)
   }
 
+  const handleParagraphMouseLeave = () => {
+    setIsEndingSpaceHovered(false)
+  }
+
   return (
     <>
       <p 
-        className="inline-block relative my-[1px]" // Added tiny vertical margin
+        className="inline-block relative my-[1px]" // Reduced vertical margin
         onClick={handleParagraphClick}
         onMouseMove={handleParagraphMouseMove}
-        onMouseLeave={() => setIsEndingSpaceHovered(false)}
+        onMouseLeave={handleParagraphMouseLeave}
       >
         <CursorSpace
           id={`${paragraph.id}-start`}
