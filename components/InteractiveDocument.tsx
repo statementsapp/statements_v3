@@ -101,18 +101,58 @@ const SentenceComponent: React.FC<{
   onMouseLeave: () => void
 }> = ({ sentence, onClick, isEditing, onInput, isDragging, onMouseEnter, onMouseLeave }) => {
   const ref = useRef<HTMLSpanElement>(null)
+  const [localText, setLocalText] = useState(sentence.text)
+  const [selectionStart, setSelectionStart] = useState(0)
+  const [selectionEnd, setSelectionEnd] = useState(0)
+
+  useEffect(() => {
+    setLocalText(sentence.text)
+  }, [sentence.text])
 
   useEffect(() => {
     if (isEditing && ref.current) {
       ref.current.focus()
+      const range = document.createRange()
+      const sel = window.getSelection()
+      if (sel) {
+        range.setStart(ref.current.firstChild || ref.current, selectionStart)
+        range.setEnd(ref.current.firstChild || ref.current, selectionEnd)
+        sel.removeAllRanges()
+        sel.addRange(range)
+      }
     }
-  }, [isEditing])
+  }, [isEditing, selectionStart, selectionEnd])
 
   const handleClick = (e: React.MouseEvent) => {
-    if (isEditing) {
-      return
+    if (!isEditing) {
+      onClick(e)
+    } else {
+      const selection = window.getSelection()
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0)
+        setSelectionStart(range.startOffset)
+        setSelectionEnd(range.endOffset)
+      }
     }
-    onClick(e)
+  }
+
+  const handleInput = (e: React.FormEvent<HTMLSpanElement>) => {
+    const newText = e.currentTarget.textContent || ''
+    setLocalText(newText)
+    onInput(newText)
+
+    const selection = window.getSelection()
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0)
+      setSelectionStart(range.startOffset)
+      setSelectionEnd(range.endOffset)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLSpanElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+    }
   }
 
   return (
@@ -122,12 +162,12 @@ const SentenceComponent: React.FC<{
       onClick={handleClick}
       contentEditable={isEditing}
       suppressContentEditableWarning
-      onInput={(e) => onInput(e.currentTarget.textContent || '')}
+      onInput={handleInput}
+      onKeyDown={handleKeyDown}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-    >
-      {sentence.text}
-    </span>
+      dangerouslySetInnerHTML={{ __html: localText }}
+    />
   )
 }
 
