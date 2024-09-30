@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Your custom styles go here */
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -24,4 +26,28 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+}
+
+/* Add these styles for better document layout */
+.document-container {
+  @apply max-w-3xl mx-auto p-4 sm:p-6 lg:p-8;
+}
+
+.document-content {
+  @apply space-y-1; /* Changed from space-y-4 to space-y-1 */
+}
+
+/* Style for cursor spaces */
+.cursor-space {
+  @apply w-2 h-5 inline-block bg-blue-500 animate-pulse;
+}
+
+/* Style for paragraph separators */
+.paragraph-separator {
+  @apply my-1 border-t border-gray-300 dark:border-gray-700; /* Changed from my-4 to my-1 */
+}
+
+/* Add this new style for paragraphs */
+.document-paragraph {
+  @apply mt-1 mb-2; /* Adds a small top margin and slightly larger bottom margin */
 }

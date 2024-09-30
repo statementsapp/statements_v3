@@ -1,9 +1,11 @@
 'use client'
 
-import dynamic from 'next/dynamic'
-
-const InteractiveDocument = dynamic(() => import('./InteractiveDocument'), { ssr: false })
+import InteractiveDocument from './InteractiveDocument'
 
 export default function InteractiveDocumentWrapper() {
-  return <InteractiveDocument />
+  return (
+    <div className="max-w-4xl mx-auto bg-white shadow-lg rounded-lg p-6">
+      <InteractiveDocument />
+    </div>
+  )
 }

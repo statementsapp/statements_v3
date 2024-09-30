@@ -286,7 +286,7 @@ const ParagraphSeparator: React.FC<{
     >
       {!isFocused && (
         <div 
-          className={`absolute left-0 w-1/3 h-1 bg-white transition-opacity duration-300 ease-in-out ${
+          className={`absolute left-0 w-1/3 h-1 bg-gray-300 transition-opacity duration-300 ease-in-out ${
             isHovered ? 'opacity-100' : 'opacity-0'
           }`} 
         />
@@ -463,7 +463,7 @@ const ParagraphComponent: React.FC<{
   return (
     <>
       <p 
-        className="inline-block relative my-[1px]" // Reduced vertical margin
+        className="document-paragraph inline-block relative" // Added document-paragraph class
         onClick={handleParagraphClick}
         onMouseMove={handleParagraphMouseMove}
         onMouseLeave={handleParagraphMouseLeave}
@@ -554,6 +554,15 @@ const InteractiveDocument: React.FC = () => {
         { id: '8', text: 'This final sentence concludes the second paragraph.' },
       ],
     },
+    {
+      id: '3',
+      sentences: [
+        { id: '9', text: 'The third paragraph begins with this sentence.' },
+        { id: '10', text: 'Look at this sentence' },
+        { id: '11', text: 'The third sentence continues the thought.' },
+        { id: '12', text: 'So much sentence and this is the final sentence of this paragraph.' },
+      ],
+    },
   ])
   const [editingSentenceId, setEditingSentenceId] = useState<string | null>(null)
   const [focusedCursorSpaceId, setFocusedCursorSpaceId] = useState<string | null>(null)
@@ -576,7 +585,7 @@ const InteractiveDocument: React.FC = () => {
       newParagraphs.splice(index, 0, newParagraph)
       return newParagraphs
     })
-    return newParagraphId
+    return newParagraphId  // Explicitly return the new paragraph ID
   }
 
   useEffect(() => {
@@ -591,39 +600,42 @@ const InteractiveDocument: React.FC = () => {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="max-w-2xl mx-auto p-4">
-        <h1
-          className="text-3xl font-bold mb-4"
-          contentEditable
-          suppressContentEditableWarning
-          onBlur={(e) => setTitle(e.currentTarget.textContent || '')}
-        >
-          {title}
-        </h1>
+      <div className="document-container">
+        <div className="document-content">
+          <h1
+            className="text-3xl font-bold mb-4"
+            contentEditable
+            suppressContentEditableWarning
+            onBlur={(e) => setTitle(e.currentTarget.textContent || '')}
+          >
+            {title}
+          </h1>
 
-        <ParagraphSeparator
-          id={`separator-before-first`}
-          onEnter={(text) => addParagraph(0, text)}
-          onFocus={() => setFocusedCursorSpaceId(`separator-before-first`)}
-          isFocused={focusedCursorSpaceId === `separator-before-first`}
-          isLast={false}
-        />
-
-        {paragraphs.map((paragraph, index) => (
-          <ParagraphComponent
-            key={paragraph.id}
-            paragraph={paragraph}
-            updateParagraph={updateParagraph}
-            editingSentenceId={editingSentenceId}
-            setEditingSentenceId={setEditingSentenceId}
-            focusedCursorSpaceId={focusedCursorSpaceId}
-            setFocusedCursorSpaceId={setFocusedCursorSpaceId}
-            isLast={index === paragraphs.length - 1}
-            addParagraph={addParagraph}
-            paragraphIndex={index}
-            setFocusParagraphId={setFocusParagraphId}
+          <ParagraphSeparator
+            id={`separator-before-first`}
+            onEnter={(text) => addParagraph(0, text)}
+            onFocus={() => setFocusedCursorSpaceId(`separator-before-first`)}
+            isFocused={focusedCursorSpaceId === `separator-before-first`}
+            isLast={false}
           />
-        ))}
+
+          {paragraphs.map((paragraph, index) => (
+            <ParagraphComponent
+              key={paragraph.id}
+              paragraph={paragraph}
+              updateParagraph={updateParagraph}
+              editingSentenceId={editingSentenceId}
+              setEditingSentenceId={setEditingSentenceId}
+              focusedCursorSpaceId={focusedCursorSpaceId}
+              setFocusedCursorSpaceId={setFocusedCursorSpaceId}
+              isLast={index === paragraphs.length - 1}
+              addParagraph={addParagraph}
+              paragraphIndex={index}
+              setFocusParagraphId={setFocusParagraphId}
+            />
+          ))}
+          {/* Removed the extra cursor space here */}
+        </div>
       </div>
     </DndProvider>
   )
