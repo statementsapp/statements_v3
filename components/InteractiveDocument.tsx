@@ -25,7 +25,8 @@ const CursorSpace = React.forwardRef<HTMLSpanElement, {
   onMouseEnter?: () => void
   onMouseLeave?: () => void
   isSeparator?: boolean
-}>(({ id, onEnter, onFocus, isFocused, isFirst, isLast, showSolidCursor, onMouseEnter, onMouseLeave, isSeparator }, ref) => {
+  isDisabled: boolean
+}>(({ id, onEnter, onFocus, isFocused, isFirst, isLast, showSolidCursor, onMouseEnter, onMouseLeave, isSeparator, isDisabled }, ref) => {
   const [text, setText] = useState('')
   const inputRef = useRef<HTMLSpanElement | null>(null)
 
@@ -56,12 +57,24 @@ const CursorSpace = React.forwardRef<HTMLSpanElement, {
     }
   }
 
+  const handleMouseEnter = () => {
+    if (!isDisabled && onMouseEnter) {
+      onMouseEnter()
+    }
+  }
+
+  const handleMouseLeave = () => {
+    if (!isDisabled && onMouseLeave) {
+      onMouseLeave()
+    }
+  }
+
   return (
     <span 
       id={id}
       className={`inline-flex items-center ${isFirst ? 'ml-0' : ''} ${isLast ? 'mr-0' : ''} ${isSeparator ? 'w-full' : 'ml-[0.5ch] mr-[0.25ch]'} `} // Changed 'mx-[0.25ch]' to 'ml-[0.5ch] mr-[0.25ch]'
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <span
         ref={(node) => {
@@ -229,7 +242,8 @@ const ParagraphSeparator: React.FC<{
   onFocus: () => void
   isFocused: boolean
   isLast: boolean
-}> = React.memo(({ id, onEnter, onFocus, isFocused, isLast }) => {
+  isDisabled?: boolean
+}> = React.memo(({ id, onEnter, onFocus, isFocused, isLast, isDisabled }) => {
   const [isHovered, setIsHovered] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const cursorSpaceRef = useRef<HTMLSpanElement>(null)
@@ -301,6 +315,7 @@ const ParagraphSeparator: React.FC<{
         showSolidCursor={false}
         isSeparator={true}
         ref={cursorSpaceRef}
+        isDisabled={isDisabled}
       />
     </div>
   )
@@ -320,6 +335,8 @@ const ParagraphComponent: React.FC<{
   addParagraph: (index: number, text: string) => void
   paragraphIndex: number
   setFocusParagraphId: (id: string | null) => void
+  moveSentence: (sentenceId: string, e: React.MouseEvent) => void
+  newlyPlacedSentenceId: string | null
 }> = ({ 
   paragraph, 
   updateParagraph, 
@@ -330,7 +347,9 @@ const ParagraphComponent: React.FC<{
   isLast,
   addParagraph,
   paragraphIndex,
-  setFocusParagraphId
+  setFocusParagraphId,
+  moveSentence,
+  newlyPlacedSentenceId
 }) => {
   const [lastClickedSentenceId, setLastClickedSentenceId] = useState<string | null>(null)
   const [lastClickTime, setLastClickTime] = useState<number>(0)
@@ -383,24 +402,22 @@ const ParagraphComponent: React.FC<{
     }
   }, [])
 
-  // Removed unused 'e' parameter from handleSentenceClick
-  const handleSentenceClick = (sentenceId: string, index: number) => { // Removed 'e'
+  const handleSentenceClick = (sentenceId: string, index: number, e: React.MouseEvent) => {
     const currentTime = new Date().getTime()
     const timeDiff = currentTime - lastClickTime
     const cursorSpaceId = `${paragraph.id}-${index}`
     
     if (lastClickedSentenceId === sentenceId && timeDiff < 300) {
       setEditingSentenceId(sentenceId)
-      console.log('Setting focused cursor space ID to null')
       setFocusedCursorSpaceId(null)
     } else {
       setEditingSentenceId(sentenceId)
-      console.log('Setting focused cursor space ID to:', cursorSpaceId)
       setFocusedCursorSpaceId(cursorSpaceId)
     }
 
     setLastClickedSentenceId(sentenceId)
     setLastClickTime(currentTime)
+    moveSentence(sentenceId, e)
   }
 
   const handleSentenceInput = (sentenceId: string, text: string) => {
@@ -485,6 +502,7 @@ const ParagraphComponent: React.FC<{
           showSolidCursor={isFirstCursorSpaceHovered}
           onMouseEnter={() => setIsFirstCursorSpaceHovered(true)}
           onMouseLeave={() => setIsFirstCursorSpaceHovered(false)}
+          isDisabled={newlyPlacedSentenceId !== null}
         />
         {paragraph.sentences.map((sentence, index) => (
           <React.Fragment key={sentence.id}>
@@ -492,7 +510,7 @@ const ParagraphComponent: React.FC<{
               sentence={sentence}
               index={index}
               moveItem={moveSentenceWithinParagraph}
-              onClick={() => handleSentenceClick(sentence.id, index)} // Updated to remove 'e'
+              onClick={(e) => handleSentenceClick(sentence.id, index, e)}
               isEditing={editingSentenceId === sentence.id}
               onInput={(text) => handleSentenceInput(sentence.id, text)}
               onMouseEnter={() => setHoveredSentenceIndex(index)}
@@ -519,6 +537,7 @@ const ParagraphComponent: React.FC<{
                   handleLastCursorMouseLeave()
                 }
               }}
+              isDisabled={newlyPlacedSentenceId !== null}
             />
           </React.Fragment>
         ))}
@@ -535,6 +554,7 @@ const ParagraphComponent: React.FC<{
         onFocus={() => setFocusedCursorSpaceId(`separator-after-${paragraph.id}`)}
         isFocused={focusedCursorSpaceId === `separator-after-${paragraph.id}`}
         isLast={isLast}
+        isDisabled={newlyPlacedSentenceId !== null}
       />
     </>
   )
@@ -574,6 +594,31 @@ const InteractiveDocument: React.FC = () => {
   const [editingSentenceId, setEditingSentenceId] = useState<string | null>(null)
   const [focusedCursorSpaceId, setFocusedCursorSpaceId] = useState<string | null>(null)
   const [focusParagraphId, setFocusParagraphId] = useState<string | null>(null)
+  const [newlyPlacedSentence, setNewlyPlacedSentence] = useState<{ id: string, initialX: number, initialY: number } | null>(null)
+  const mouseMoveThreshold = 30
+  const [thresholdReached, setThresholdReached] = useState(false)
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (newlyPlacedSentence) {
+      const { initialX, initialY } = newlyPlacedSentence
+      const dx = e.clientX - initialX
+      const dy = e.clientY - initialY
+      const distance = Math.sqrt(dx * dx + dy * dy)
+
+      if (distance >= mouseMoveThreshold) {
+        setNewlyPlacedSentence(null)
+        setThresholdReached(true)
+        console.log('Mouse movement threshold reached. Expansions and solid cursors are now active.')
+      }
+    }
+  }, [newlyPlacedSentence, mouseMoveThreshold])
+
+  useEffect(() => {
+    document.addEventListener('mousemove', handleMouseMove)
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+    }
+  }, [handleMouseMove])
 
   const updateParagraph = (updatedParagraph: Paragraph) => {
     setParagraphs((prevParagraphs) =>
@@ -629,6 +674,29 @@ const InteractiveDocument: React.FC = () => {
     }
   }, [paragraphs, focusParagraphId, focusedCursorSpaceId])
 
+  const moveSentence = (sentenceId: string, e: React.MouseEvent) => {
+    console.log('Moving sentence:', sentenceId)
+    setNewlyPlacedSentence({ id: sentenceId, initialX: e.clientX, initialY: e.clientY })
+    setThresholdReached(false)
+  }
+
+  // Add this new function to reset newlyPlacedSentence
+  const resetNewlyPlacedSentence = useCallback(() => {
+    setNewlyPlacedSentence(null)
+    setThresholdReached(false)
+  }, [])
+
+  // Add a new useEffect to reset newlyPlacedSentence after a delay
+  useEffect(() => {
+    if (newlyPlacedSentence) {
+      const timer = setTimeout(() => {
+        resetNewlyPlacedSentence()
+      }, 500) // Adjust this delay as needed
+
+      return () => clearTimeout(timer)
+    }
+  }, [newlyPlacedSentence, resetNewlyPlacedSentence])
+
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="document-container">
@@ -654,6 +722,7 @@ const InteractiveDocument: React.FC = () => {
             onFocus={() => setFocusedCursorSpaceId(`separator-before-first`)}
             isFocused={focusedCursorSpaceId === `separator-before-first`}
             isLast={false}
+            isDisabled={newlyPlacedSentence !== null}
           />
 
           {paragraphs.map((paragraph, index) => (
@@ -669,6 +738,8 @@ const InteractiveDocument: React.FC = () => {
               addParagraph={addParagraph}
               paragraphIndex={index}
               setFocusParagraphId={setFocusParagraphId}
+              moveSentence={moveSentence}
+              newlyPlacedSentenceId={newlyPlacedSentence?.id ?? null}
             />
           ))}
           {/* Removed the extra cursor space here */}
