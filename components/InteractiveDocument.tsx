@@ -391,9 +391,11 @@ const ParagraphComponent: React.FC<{
     
     if (lastClickedSentenceId === sentenceId && timeDiff < 300) {
       setEditingSentenceId(sentenceId)
+      console.log('Setting focused cursor space ID to null')
       setFocusedCursorSpaceId(null)
     } else {
       setEditingSentenceId(sentenceId)
+      console.log('Setting focused cursor space ID to:', cursorSpaceId)
       setFocusedCursorSpaceId(cursorSpaceId)
     }
 
@@ -412,7 +414,9 @@ const ParagraphComponent: React.FC<{
     const newSentences = [...paragraph.sentences]
     const newSentenceId = Date.now().toString()
     newSentences.splice(index, 0, { id: newSentenceId, text })
+    console.log("Handling a cursor space enter")
     updateParagraph({ ...paragraph, sentences: newSentences })
+    console.log('Setting focused cursor space ID to:', `${paragraph.id}-${index}`)
     setFocusedCursorSpaceId(`${paragraph.id}-${index}`)
   }
 
@@ -426,12 +430,15 @@ const ParagraphComponent: React.FC<{
   const handleSeparatorEnter = (text: string, position: 'before' | 'after') => {
     const now = Date.now()
     if (now - lastSeparatorEnterRef.current < 500) {
-      return // Ignore if the function was called within the last 500ms
+      return
     }
     lastSeparatorEnterRef.current = now
     const index = position === 'before' ? paragraphIndex : paragraphIndex + 1
     const newParagraphId = addParagraph(index, text)
+    console.log('3. New paragraph added with ID:', newParagraphId) // Log 3
     setFocusParagraphId(newParagraphId)
+    console.log('Setting focused cursor space ID to:', 'separator-enter')
+    setFocusedCursorSpaceId('separator-enter')
   }
 
   const handleParagraphClick = (e: React.MouseEvent<HTMLParagraphElement>) => {
@@ -590,13 +597,40 @@ const InteractiveDocument: React.FC = () => {
 
   useEffect(() => {
     if (focusParagraphId) {
-      const paragraph = paragraphs.find(p => p.id === focusParagraphId)
-      if (paragraph && paragraph.sentences.length > 0) {
-        setFocusedCursorSpaceId(`${paragraph.id}-0`) // Reverted focus to cursor space 1
+      console.log('4. Effect triggered. focusParagraphId:', focusParagraphId) // Log 4
+      const paragraphIndex = paragraphs.findIndex(p => p.id === focusParagraphId)
+      if (paragraphIndex !== -1) {
+        const paragraph = paragraphs[paragraphIndex]
+        if (paragraph && paragraph.sentences.length > 0) {
+          if (focusedCursorSpaceId === 'separator-enter') {
+            // Function to find the next valid cursor space
+
+            const findNextValidCursorSpace = (startIndex: number): string => {
+              console.log('Finding next valid cursor space starting from index:', startIndex)
+              for (let i = startIndex; i < paragraphs.length; i++) {
+                const p = paragraphs[i]
+                if (p.sentences.length > 0) {
+                  return `${p.id}-${p.sentences.length - 1}`
+                }
+              }
+              // If no valid cursor space found, return the last cursor space of the current paragraph
+              return `${paragraph.id}-${paragraph.sentences.length - 1}`
+            }
+
+            // Find the next valid cursor space
+            const nextValidCursorSpace = findNextValidCursorSpace(paragraphIndex + 1)
+            console.log('5. Next valid cursor space:', nextValidCursorSpace) // Log 5
+            setFocusedCursorSpaceId(nextValidCursorSpace)
+          } else {
+            // For other cases, keep the existing behavior
+            console.log('Setting focused cursor space ID to:', `${paragraph.id}-0`)
+            setFocusedCursorSpaceId(`${paragraph.id}-0`)
+          }
+        }
       }
       setFocusParagraphId(null)
     }
-  }, [paragraphs, focusParagraphId])
+  }, [paragraphs, focusParagraphId, focusedCursorSpaceId])
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -613,7 +647,13 @@ const InteractiveDocument: React.FC = () => {
 
           <ParagraphSeparator
             id={`separator-before-first`}
-            onEnter={(text) => addParagraph(0, text)}
+            onEnter={(text) => {
+              const newParagraphId = addParagraph(0, text)
+              // Set focus to the new paragraph's last cursor space
+              setFocusedCursorSpaceId(`${newParagraphId}-0`)
+              // Use setFocusParagraphId to trigger the useEffect that will handle the focus
+              setFocusParagraphId(newParagraphId)
+            }}
             onFocus={() => setFocusedCursorSpaceId(`separator-before-first`)}
             isFocused={focusedCursorSpaceId === `separator-before-first`}
             isLast={false}
