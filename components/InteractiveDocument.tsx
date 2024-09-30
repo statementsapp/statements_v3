@@ -14,6 +14,21 @@ type Paragraph = {
   sentences: Sentence[]
 }
 
+// Add this custom hook at the top of the file, outside of any component
+function useDebounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
+  const timeout = useRef<NodeJS.Timeout>()
+
+  return useCallback((...args: Parameters<T>) => {
+    const later = () => {
+      clearTimeout(timeout.current)
+      func(...args)
+    }
+
+    clearTimeout(timeout.current)
+    timeout.current = setTimeout(later, wait)
+  }, [func, wait]) as T
+}
+
 const CursorSpace = React.forwardRef<HTMLSpanElement, {
   id: string
   onEnter: (text: string) => void
@@ -248,18 +263,39 @@ const ParagraphSeparator: React.FC<{
   const [isExpanded, setIsExpanded] = useState(false)
   const cursorSpaceRef = useRef<HTMLSpanElement>(null)
   const separatorRef = useRef<HTMLDivElement>(null)
+  const lastMousePositionRef = useRef<{ x: number; y: number } | null>(null)
 
-  const handleMouseEnter = useCallback(() => {
+  const debouncedSetIsHovered = useDebounce(setIsHovered, 100)
+  const debouncedSetIsExpanded = useDebounce(setIsExpanded, 100)
+
+  const handleMouseEnter = useCallback((e: React.MouseEvent) => {
     if (!isFocused) {
-      setIsHovered(true)
-      setIsExpanded(true)
+      lastMousePositionRef.current = { x: e.clientX, y: e.clientY }
+      debouncedSetIsHovered(true)
+      debouncedSetIsExpanded(true)
     }
-  }, [isFocused])
+  }, [isFocused, debouncedSetIsHovered, debouncedSetIsExpanded])
 
-  const handleMouseLeave = useCallback(() => {
+  const handleMouseLeave = useCallback((e: React.MouseEvent) => {
     if (!isFocused) {
-      setIsHovered(false)
-      setIsExpanded(false)
+      const lastPosition = lastMousePositionRef.current
+      if (lastPosition) {
+        const dx = e.clientX - lastPosition.x
+        const dy = e.clientY - lastPosition.y
+        const distance = Math.sqrt(dx * dx + dy * dy)
+        
+        // Only collapse if the mouse has moved more than 5 pixels
+        if (distance > 5) {
+          debouncedSetIsHovered(false)
+          debouncedSetIsExpanded(false)
+        }
+      }
+    }
+  }, [isFocused, debouncedSetIsHovered, debouncedSetIsExpanded])
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isFocused) {
+      lastMousePositionRef.current = { x: e.clientX, y: e.clientY }
     }
   }, [isFocused])
 
@@ -274,6 +310,7 @@ const ParagraphSeparator: React.FC<{
       if (separatorRef.current && !separatorRef.current.contains(event.target as Node)) {
         setIsExpanded(false)
         setIsHovered(false)
+        lastMousePositionRef.current = null
       }
     }
 
@@ -297,6 +334,7 @@ const ParagraphSeparator: React.FC<{
       }`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onMouseMove={handleMouseMove}
     >
       {!isFocused && (
         <div 
@@ -621,9 +659,25 @@ const InteractiveDocument: React.FC = () => {
   }, [handleMouseMove])
 
   const updateParagraph = (updatedParagraph: Paragraph) => {
-    setParagraphs((prevParagraphs) =>
-      prevParagraphs.map((p) => (p.id === updatedParagraph.id ? updatedParagraph : p))
-    )
+    setParagraphs((prevParagraphs) => {
+      const newParagraphs = prevParagraphs.map((p) => (p.id === updatedParagraph.id ? updatedParagraph : p))
+      
+      // Find the newly added sentence
+      const oldParagraph = prevParagraphs.find(p => p.id === updatedParagraph.id)
+      const newSentence = updatedParagraph.sentences.find(s => !oldParagraph?.sentences.some(os => os.id === s.id))
+      
+      if (newSentence) {
+        // Set the newly placed sentence
+        setNewlyPlacedSentence({
+          id: newSentence.id,
+          initialX: window.innerWidth / 2, // Use the center of the screen as initial position
+          initialY: window.innerHeight / 2
+        })
+        setThresholdReached(false)
+      }
+      
+      return newParagraphs
+    })
   }
 
   const addParagraph = (index: number, text: string): string => {
