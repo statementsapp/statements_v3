@@ -597,30 +597,27 @@ const InteractiveDocument: React.FC = () => {
 
   useEffect(() => {
     if (focusParagraphId) {
-      console.log('4. Effect triggered. focusParagraphId:', focusParagraphId) // Log 4
+      console.log('4. Effect triggered. focusParagraphId:', focusParagraphId)
       const paragraphIndex = paragraphs.findIndex(p => p.id === focusParagraphId)
       if (paragraphIndex !== -1) {
         const paragraph = paragraphs[paragraphIndex]
         if (paragraph && paragraph.sentences.length > 0) {
           if (focusedCursorSpaceId === 'separator-enter') {
-            // Function to find the next valid cursor space
-
-            const findNextValidCursorSpace = (startIndex: number): string => {
-              console.log('Finding next valid cursor space starting from index:', startIndex)
-              for (let i = startIndex; i < paragraphs.length; i++) {
-                const p = paragraphs[i]
-                if (p.sentences.length > 0) {
-                  return `${p.id}-${p.sentences.length - 1}`
-                }
+            // Function to find the correct cursor space
+            const findCorrectCursorSpace = (index: number): string => {
+              console.log('Finding correct cursor space for index:', index)
+              const p = paragraphs[index]
+              if (p && p.sentences.length > 0) {
+                return `${p.id}-${p.sentences.length - 1}`
               }
-              // If no valid cursor space found, return the last cursor space of the current paragraph
-              return `${paragraph.id}-${paragraph.sentences.length - 1}`
+              // If the paragraph is empty, return its start cursor space
+              return `${p.id}-start`
             }
 
-            // Find the next valid cursor space
-            const nextValidCursorSpace = findNextValidCursorSpace(paragraphIndex + 1)
-            console.log('5. Next valid cursor space:', nextValidCursorSpace) // Log 5
-            setFocusedCursorSpaceId(nextValidCursorSpace)
+            // Find the correct cursor space for the newly added paragraph
+            const correctCursorSpace = findCorrectCursorSpace(paragraphIndex)
+            console.log('5. Correct cursor space:', correctCursorSpace)
+            setFocusedCursorSpaceId(correctCursorSpace)
           } else {
             // For other cases, keep the existing behavior
             console.log('Setting focused cursor space ID to:', `${paragraph.id}-0`)
