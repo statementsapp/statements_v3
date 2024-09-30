@@ -29,6 +29,14 @@ function useDebounce<T extends (...args: any[]) => any>(func: T, wait: number): 
   }, [func, wait]) as T
 }
 
+// Add this new type
+type DragItem = {
+  type: 'SENTENCE'
+  id: string
+  paragraphId: string
+  index: number
+}
+
 const CursorSpace = React.forwardRef<HTMLSpanElement, {
   id: string
   onEnter: (text: string) => void
@@ -201,18 +209,19 @@ const SentenceComponent: React.FC<{
 
 const DraggableSentence: React.FC<{
   sentence: Sentence
+  paragraphId: string
   index: number
-  moveItem: (dragIndex: number, hoverIndex: number) => void
+  moveSentence: (draggedSentenceId: string, sourceParagraphId: string, targetParagraphId: string, targetIndex: number) => void
   onClick: (e: React.MouseEvent) => void
   isEditing: boolean
   onInput: (text: string) => void
   onMouseEnter: () => void
   onMouseLeave: () => void
-}> = ({ sentence, index, moveItem, onClick, isEditing, onInput, onMouseEnter, onMouseLeave }) => {
+}> = ({ sentence, paragraphId, index, moveSentence, onClick, isEditing, onInput, onMouseEnter, onMouseLeave }) => {
   const ref = useRef<HTMLSpanElement>(null)
   const [{ isDragging }, drag] = useDrag({
     type: 'SENTENCE',
-    item: { index },
+    item: { type: 'SENTENCE', id: sentence.id, paragraphId, index } as DragItem,
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
@@ -220,24 +229,62 @@ const DraggableSentence: React.FC<{
 
   const [, drop] = useDrop({
     accept: 'SENTENCE',
-    hover: (item: { index: number }) => { // Removed unused 'monitor' parameter
+    hover: (item: DragItem, monitor) => {
       if (!ref.current) {
         return
       }
       const dragIndex = item.index
       const hoverIndex = index
-      if (dragIndex === hoverIndex) {
+      const sourceParagraphId = item.paragraphId
+      const targetParagraphId = paragraphId
+
+      // Don't replace items with themselves
+      if (dragIndex === hoverIndex && sourceParagraphId === targetParagraphId) {
         return
       }
-      moveItem(dragIndex, hoverIndex)
+
+      // Determine rectangle on screen
+      const hoverBoundingRect = ref.current?.getBoundingClientRect()
+
+      // Get vertical middle
+      const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2
+
+      // Determine mouse position
+      const clientOffset = monitor.getClientOffset()
+
+      // Get pixels to the top
+      const hoverClientY = clientOffset!.y - hoverBoundingRect.top
+
+      // Only perform the move when the mouse has crossed half of the items height
+      // When dragging downwards, only move when the cursor is below 50%
+      // When dragging upwards, only move when the cursor is above 50%
+
+      // Dragging downwards
+      if (dragIndex < hoverIndex && hoverClientY < hoverMiddleY) {
+        return
+      }
+
+      // Dragging upwards
+      if (dragIndex > hoverIndex && hoverClientY > hoverMiddleY) {
+        return
+      }
+
+      // Time to actually perform the action
+      moveSentence(item.id, sourceParagraphId, targetParagraphId, hoverIndex)
+
+      // Note: we're mutating the monitor item here!
+      // Generally it's better to avoid mutations,
+      // but it's good here for the sake of performance
+      // to avoid expensive index searches.
       item.index = hoverIndex
+      item.paragraphId = targetParagraphId
     },
   })
 
   drag(drop(ref))
 
   return (
-    <span ref={ref} className="inline">
+    <span ref={ref} className={`inline ${isDragging ? 'opacity-50' : ''}`}>
       <SentenceComponent
         sentence={sentence}
         onClick={onClick}
@@ -260,57 +307,31 @@ const ParagraphSeparator: React.FC<{
   isDisabled?: boolean
 }> = React.memo(({ id, onEnter, onFocus, isFocused, isLast, isDisabled }) => {
   const [isHovered, setIsHovered] = useState(false)
-  const [isExpanded, setIsExpanded] = useState(false)
-  const cursorSpaceRef = useRef<HTMLSpanElement>(null)
   const separatorRef = useRef<HTMLDivElement>(null)
-  const lastMousePositionRef = useRef<{ x: number; y: number } | null>(null)
+  const cursorSpaceRef = useRef<HTMLSpanElement>(null)
 
-  const debouncedSetIsHovered = useDebounce(setIsHovered, 100)
-  const debouncedSetIsExpanded = useDebounce(setIsExpanded, 100)
-
-  const handleMouseEnter = useCallback((e: React.MouseEvent) => {
+  const handleMouseEnter = () => {
     if (!isFocused) {
-      lastMousePositionRef.current = { x: e.clientX, y: e.clientY }
-      debouncedSetIsHovered(true)
-      debouncedSetIsExpanded(true)
+      setIsHovered(true)
     }
-  }, [isFocused, debouncedSetIsHovered, debouncedSetIsExpanded])
+  }
 
-  const handleMouseLeave = useCallback((e: React.MouseEvent) => {
+  const handleMouseLeave = () => {
     if (!isFocused) {
-      const lastPosition = lastMousePositionRef.current
-      if (lastPosition) {
-        const dx = e.clientX - lastPosition.x
-        const dy = e.clientY - lastPosition.y
-        const distance = Math.sqrt(dx * dx + dy * dy)
-        
-        // Only collapse if the mouse has moved more than 5 pixels
-        if (distance > 5) {
-          debouncedSetIsHovered(false)
-          debouncedSetIsExpanded(false)
-        }
-      }
+      setIsHovered(false)
     }
-  }, [isFocused, debouncedSetIsHovered, debouncedSetIsExpanded])
+  }
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isFocused) {
-      lastMousePositionRef.current = { x: e.clientX, y: e.clientY }
-    }
-  }, [isFocused])
-
-  const handleFocus = useCallback(() => {
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault()
     onFocus()
-    setIsHovered(true)
-    setIsExpanded(true)
-  }, [onFocus])
+  }
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (separatorRef.current && !separatorRef.current.contains(event.target as Node)) {
-        setIsExpanded(false)
+        // This will collapse the separator and remove the hover state when clicking outside
         setIsHovered(false)
-        lastMousePositionRef.current = null
       }
     }
 
@@ -320,9 +341,10 @@ const ParagraphSeparator: React.FC<{
     }
   }, [])
 
+  // Reset hover state when focus is lost
   useEffect(() => {
-    if (isFocused) {
-      setIsExpanded(true)
+    if (!isFocused) {
+      setIsHovered(false)
     }
   }, [isFocused])
 
@@ -330,11 +352,11 @@ const ParagraphSeparator: React.FC<{
     <div 
       ref={separatorRef}
       className={`w-full relative flex items-center cursor-text transition-all duration-300 ease-in-out ${
-        isExpanded ? 'h-8 mt-[1px] mb-[1px]' : 'h-1 my-[1px]'
+        isFocused ? 'h-8 mt-[1px] mb-[1px]' : 'h-1 my-[1px]'
       }`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      onMouseMove={handleMouseMove}
+      onClick={handleClick}
     >
       {!isFocused && (
         <div 
@@ -346,14 +368,14 @@ const ParagraphSeparator: React.FC<{
       <CursorSpace
         id={id}
         onEnter={onEnter}
-        onFocus={handleFocus}
+        onFocus={onFocus}
         isFocused={isFocused}
         isFirst={true}
         isLast={isLast}
         showSolidCursor={false}
         isSeparator={true}
         ref={cursorSpaceRef}
-        isDisabled={isDisabled}
+        isDisabled={isDisabled ?? false}
       />
     </div>
   )
@@ -373,7 +395,7 @@ const ParagraphComponent: React.FC<{
   addParagraph: (index: number, text: string) => void
   paragraphIndex: number
   setFocusParagraphId: (id: string | null) => void
-  moveSentence: (sentenceId: string, e: React.MouseEvent) => void
+  moveSentence: (sentenceId: string, sourceParagraphId: string, targetParagraphId: string, targetIndex: number) => void
   newlyPlacedSentenceId: string | null
 }> = ({ 
   paragraph, 
@@ -455,7 +477,7 @@ const ParagraphComponent: React.FC<{
 
     setLastClickedSentenceId(sentenceId)
     setLastClickTime(currentTime)
-    moveSentence(sentenceId, e)
+    moveSentence(sentenceId, paragraph.id, paragraph.id, index)
   }
 
   const handleSentenceInput = (sentenceId: string, text: string) => {
@@ -546,8 +568,9 @@ const ParagraphComponent: React.FC<{
           <React.Fragment key={sentence.id}>
             <DraggableSentence
               sentence={sentence}
+              paragraphId={paragraph.id}
               index={index}
-              moveItem={moveSentenceWithinParagraph}
+              moveSentence={moveSentence}
               onClick={(e) => handleSentenceClick(sentence.id, index, e)}
               isEditing={editingSentenceId === sentence.id}
               onInput={(text) => handleSentenceInput(sentence.id, text)}
@@ -728,11 +751,38 @@ const InteractiveDocument: React.FC = () => {
     }
   }, [paragraphs, focusParagraphId, focusedCursorSpaceId])
 
-  const moveSentence = (sentenceId: string, e: React.MouseEvent) => {
-    console.log('Moving sentence:', sentenceId)
-    setNewlyPlacedSentence({ id: sentenceId, initialX: e.clientX, initialY: e.clientY })
-    setThresholdReached(false)
-  }
+  const moveSentence = useCallback((sentenceId: string, sourceParagraphId: string, targetParagraphId: string, targetIndex: number) => {
+    setParagraphs((prevParagraphs) => {
+      const newParagraphs = [...prevParagraphs]
+      
+      // Find the source and target paragraphs
+      const sourceParagraphIndex = newParagraphs.findIndex(p => p.id === sourceParagraphId)
+      const targetParagraphIndex = newParagraphs.findIndex(p => p.id === targetParagraphId)
+      
+      if (sourceParagraphIndex === -1 || targetParagraphIndex === -1) {
+        return prevParagraphs
+      }
+
+      // Remove the sentence from the source paragraph
+      const sourceParagraph = newParagraphs[sourceParagraphIndex]
+      const sentenceIndex = sourceParagraph.sentences.findIndex(s => s.id === sentenceId)
+      if (sentenceIndex === -1) {
+        return prevParagraphs
+      }
+      const [movedSentence] = sourceParagraph.sentences.splice(sentenceIndex, 1)
+
+      // Insert the sentence into the target paragraph
+      const targetParagraph = newParagraphs[targetParagraphIndex]
+      targetParagraph.sentences.splice(targetIndex, 0, movedSentence)
+
+      // If the source paragraph is now empty, remove it
+      if (sourceParagraph.sentences.length === 0) {
+        newParagraphs.splice(sourceParagraphIndex, 1)
+      }
+
+      return newParagraphs
+    })
+  }, [])
 
   // Add this new function to reset newlyPlacedSentence
   const resetNewlyPlacedSentence = useCallback(() => {
