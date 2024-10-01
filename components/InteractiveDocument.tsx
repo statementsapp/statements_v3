@@ -3,10 +3,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
+import { generateRandomSentence } from '../utils/sentenceGenerator' // You'll need to create this utility function
 
 type Sentence = {
   id: string
   text: string
+  remarks: string[]
+  remarkColor?: string
 }
 
 type Paragraph = {
@@ -49,9 +52,12 @@ const CursorSpace = React.forwardRef<HTMLSpanElement, {
   onMouseLeave?: () => void
   isSeparator?: boolean
   isDisabled: boolean
-}>(({ id, onEnter, onFocus, isFocused, isFirst, isLast, showSolidCursor, onMouseEnter, onMouseLeave, isSeparator, isDisabled }, ref) => {
+  remarks?: string[]
+  remarkColor?: string
+}>(({ id, onEnter, onFocus, isFocused, isFirst, isLast, showSolidCursor, onMouseEnter, onMouseLeave, isSeparator, isDisabled, remarks = [], remarkColor }, ref) => {
   const [text, setText] = useState('')
   const inputRef = useRef<HTMLSpanElement | null>(null)
+  const [isRemarkExpanded, setIsRemarkExpanded] = useState(false)
 
   useEffect(() => {
     if (isFocused && inputRef.current) {
@@ -95,10 +101,38 @@ const CursorSpace = React.forwardRef<HTMLSpanElement, {
   return (
     <span 
       id={id}
-      className={`inline-flex items-center ${isFirst ? 'ml-0' : ''} ${isLast ? 'mr-0' : ''} ${isSeparator ? 'w-full' : 'ml-[0.5ch] mr-[0.25ch]'} `} // Changed 'mx-[0.25ch]' to 'ml-[0.5ch] mr-[0.25ch]'
+      className={`inline ${isFirst ? 'ml-0' : ''} ${isLast ? 'mr-0' : ''} ${isSeparator ? 'w-full' : 'ml-[0.5ch] mr-[0.25ch]'}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
+      {!isSeparator && !isFirst && remarks.length > 0 && (
+        <span 
+          className="inline-block transition-all duration-300 ease-in-out"
+          onMouseEnter={() => setIsRemarkExpanded(true)}
+        >
+          {isRemarkExpanded ? (
+            <span 
+              className="text-gray-600"
+              style={{
+                textDecoration: 'underline',
+                textDecorationColor: remarkColor,
+                textUnderlineOffset: '3px',
+              }}
+            >
+              {remarks[remarks.length - 1]}
+            </span>
+          ) : (
+            <span 
+              className="text-gray-500 align-sub"
+              style={{
+                fontSize: '0.8em',
+              }}
+            >
+              (+)
+            </span>
+          )}
+        </span>
+      )}
       <span
         ref={(node) => {
           if (node) {
@@ -490,7 +524,7 @@ const ParagraphComponent: React.FC<{
   const handleCursorSpaceEnter = (text: string, index: number) => {
     const newSentences = [...paragraph.sentences]
     const newSentenceId = Date.now().toString()
-    newSentences.splice(index, 0, { id: newSentenceId, text })
+    newSentences.splice(index, 0, { id: newSentenceId, text, remarks: [], remarkColor: undefined })
     console.log("Handling a cursor space enter")
     updateParagraph({ ...paragraph, sentences: newSentences })
     console.log('Setting focused cursor space ID to:', `${paragraph.id}-${index}`)
@@ -547,7 +581,7 @@ const ParagraphComponent: React.FC<{
   return (
     <>
       <p 
-        className="document-paragraph inline-block relative" // Added document-paragraph class
+        className="document-paragraph"
         onClick={handleParagraphClick}
         onMouseMove={handleParagraphMouseMove}
         onMouseLeave={handleParagraphMouseLeave}
@@ -583,7 +617,7 @@ const ParagraphComponent: React.FC<{
               onFocus={() => setFocusedCursorSpaceId(`${paragraph.id}-${index}`)}
               isFocused={focusedCursorSpaceId === `${paragraph.id}-${index}`}
               isFirst={false}
-              isLast={index === paragraph.sentences.length - 1} // Added 'isLast' prop
+              isLast={index === paragraph.sentences.length - 1}
               showSolidCursor={
                 hoveredSentenceIndex === index || 
                 (isEndingSpaceHovered && index === paragraph.sentences.length - 1)
@@ -599,7 +633,11 @@ const ParagraphComponent: React.FC<{
                 }
               }}
               isDisabled={newlyPlacedSentenceId !== null}
+              remarks={sentence.remarks}
+              remarkColor={sentence.remarkColor}
             />
+            {/* Add a space after each sentence except the last one */}
+            {index < paragraph.sentences.length - 1 && ' '}
           </React.Fragment>
         ))}
         {isEndingSpaceHovered && (
@@ -627,28 +665,28 @@ const InteractiveDocument: React.FC = () => {
     {
       id: '1',
       sentences: [
-        { id: '1', text: 'This is the first sentence of the first paragraph.' },
-        { id: '2', text: 'Here is the second sentence.' },
-        { id: '3', text: 'The third sentence follows.' },
-        { id: '4', text: 'This is the fourth and final sentence of the first paragraph.' },
+        { id: '1', text: 'This is the first sentence of the first paragraph.', remarks: [], remarkColor: undefined },
+        { id: '2', text: 'Here is the second sentence.', remarks: [], remarkColor: undefined },
+        { id: '3', text: 'The third sentence follows.', remarks: [], remarkColor: undefined },
+        { id: '4', text: 'This is the fourth and final sentence of the first paragraph.', remarks: [], remarkColor: undefined },
       ],
     },
     {
       id: '2',
       sentences: [
-        { id: '5', text: 'The second paragraph begins with this sentence.' },
-        { id: '6', text: 'Here is the second sentence of the second paragraph.' },
-        { id: '7', text: 'The third sentence continues the thought.' },
-        { id: '8', text: 'This final sentence concludes the second paragraph.' },
+        { id: '5', text: 'The second paragraph begins with this sentence.', remarks: [], remarkColor: undefined },
+        { id: '6', text: 'Here is the second sentence of the second paragraph.', remarks: [], remarkColor: undefined },
+        { id: '7', text: 'The third sentence continues the thought.', remarks: [], remarkColor: undefined },
+        { id: '8', text: 'This final sentence concludes the second paragraph.', remarks: [], remarkColor: undefined },
       ],
     },
     {
       id: '3',
       sentences: [
-        { id: '9', text: 'The third paragraph begins with this sentence.' },
-        { id: '10', text: 'Look at this sentence' },
-        { id: '11', text: 'The third sentence continues the thought.' },
-        { id: '12', text: 'So much sentence and this is the final sentence of this paragraph.' },
+        { id: '9', text: 'The third paragraph begins with this sentence.', remarks: [], remarkColor: undefined },
+        { id: '10', text: 'Look at this sentence', remarks: [], remarkColor: undefined },
+        { id: '11', text: 'The third sentence continues the thought.', remarks: [], remarkColor: undefined },
+        { id: '12', text: 'So much sentence and this is the final sentence of this paragraph.', remarks: [], remarkColor: undefined },
       ],
     },
   ])
@@ -658,6 +696,7 @@ const InteractiveDocument: React.FC = () => {
   const [newlyPlacedSentence, setNewlyPlacedSentence] = useState<{ id: string, initialX: number, initialY: number } | null>(null)
   const mouseMoveThreshold = 30
   const [thresholdReached, setThresholdReached] = useState(false)
+  const [remarks, setRemarks] = useState<{ [key: string]: string[] }>({})
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (newlyPlacedSentence) {
@@ -681,22 +720,39 @@ const InteractiveDocument: React.FC = () => {
     }
   }, [handleMouseMove])
 
+  const addRemark = useCallback((sentenceId: string) => {
+    const newRemark = generateRandomSentence()
+    const pastelColor = `hsl(${Math.random() * 360}, 100%, 80%)`
+    
+    setParagraphs((prevParagraphs) => {
+      return prevParagraphs.map(paragraph => ({
+        ...paragraph,
+        sentences: paragraph.sentences.map(sentence => 
+          sentence.id === sentenceId
+            ? { ...sentence, remarks: [...(sentence.remarks || []), newRemark], remarkColor: pastelColor }
+            : sentence
+        )
+      }))
+    })
+  }, [])
+
   const updateParagraph = (updatedParagraph: Paragraph) => {
     setParagraphs((prevParagraphs) => {
       const newParagraphs = prevParagraphs.map((p) => (p.id === updatedParagraph.id ? updatedParagraph : p))
       
-      // Find the newly added sentence
       const oldParagraph = prevParagraphs.find(p => p.id === updatedParagraph.id)
       const newSentence = updatedParagraph.sentences.find(s => !oldParagraph?.sentences.some(os => os.id === s.id))
       
       if (newSentence) {
-        // Set the newly placed sentence
         setNewlyPlacedSentence({
           id: newSentence.id,
-          initialX: window.innerWidth / 2, // Use the center of the screen as initial position
+          initialX: window.innerWidth / 2,
           initialY: window.innerHeight / 2
         })
         setThresholdReached(false)
+
+        // Set a timeout to add a remark after 5 seconds
+        setTimeout(() => addRemark(newSentence.id), 5000)
       }
       
       return newParagraphs
@@ -707,7 +763,7 @@ const InteractiveDocument: React.FC = () => {
     const newParagraphId = Date.now().toString()
     const newParagraph: Paragraph = {
       id: newParagraphId,
-      sentences: [{ id: `${newParagraphId}-1`, text }],
+      sentences: [{ id: `${newParagraphId}-1`, text, remarks: [], remarkColor: undefined }],
     }
     setParagraphs((prevParagraphs) => {
       const newParagraphs = [...prevParagraphs]
