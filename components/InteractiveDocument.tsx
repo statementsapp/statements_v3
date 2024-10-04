@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { generateRandomSentence } from '../utils/sentenceGenerator' // You'll need to create this utility function
@@ -479,6 +479,8 @@ const ParagraphComponent: React.FC<{
   setFocusParagraphId: (id: string | null) => void
   moveSentence: (sentenceId: string, sourceParagraphId: string, targetParagraphId: string, targetIndex: number) => void
   newlyPlacedSentenceId: string | null
+  onNewContent: (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark') => void
+  handleCursorSpaceEnter: (text: string, paragraphId: string, index: number, isRemarkCursor: boolean) => void
 }> = ({ 
   paragraph, 
   updateParagraph, 
@@ -491,7 +493,9 @@ const ParagraphComponent: React.FC<{
   paragraphIndex,
   setFocusParagraphId,
   moveSentence,
-  newlyPlacedSentenceId
+  newlyPlacedSentenceId,
+  onNewContent,
+  handleCursorSpaceEnter
 }) => {
   const [lastClickedSentenceId, setLastClickedSentenceId] = useState<string | null>(null)
   const [lastClickTime, setLastClickTime] = useState<number>(0)
@@ -575,31 +579,7 @@ const ParagraphComponent: React.FC<{
       s.id === sentenceId ? { ...s, text } : s
     )
     updateParagraph({ ...paragraph, sentences: newSentences })
-  }
-
-  const handleCursorSpaceEnter = (text: string, index: number) => {
-    const newSentences = [...paragraph.sentences]
-    const newSentenceId = Date.now().toString()
-    const newSentence = { id: newSentenceId, text, remarks: [], remarkColor: undefined }
-    
-    if (index > 0 && newSentences[index - 1].remarks.length > 0) {
-      // If the new sentence is created from a remark cursor space, remove the remark
-      newSentences[index - 1] = { ...newSentences[index - 1], remarks: [] }
-    }
-    
-    newSentences.splice(index, 0, newSentence)
-    updateParagraph({ ...paragraph, sentences: newSentences })
-    setFocusedCursorSpaceId(`${paragraph.id}-${index}`)
-    setExpandedRemarkIndex(null)
-    setShowRemarkSolidCursor(false)
-    setMouseHasMoved(false) // Disable mouseovers until mouse moves
-  }
-
-  const moveSentenceWithinParagraph = (dragIndex: number, hoverIndex: number) => {
-    const newSentences = [...paragraph.sentences]
-    const [removed] = newSentences.splice(dragIndex, 1)
-    newSentences.splice(hoverIndex, 0, removed)
-    updateParagraph({ ...paragraph, sentences: newSentences })
+    onNewContent(text, 'user', 'sentence')
   }
 
   const handleSeparatorEnter = (text: string, position: 'before' | 'after') => {
@@ -728,7 +708,7 @@ const ParagraphComponent: React.FC<{
       >
         <CursorSpace
           id={`${paragraph.id}-start`}
-          onEnter={(text) => handleCursorSpaceEnter(text, 0)}
+          onEnter={(text) => handleCursorSpaceEnter(text, paragraph.id, 0, false)}
           onFocus={() => setFocusedCursorSpaceId(`${paragraph.id}-start`)}
           isFocused={focusedCursorSpaceId === `${paragraph.id}-start`}
           isFirst={true}
@@ -754,7 +734,9 @@ const ParagraphComponent: React.FC<{
             <span className="remark-container">
               <CursorSpace
                 id={`${paragraph.id}-${index}-remark`}
-                onEnter={(text) => handleCursorSpaceEnter(text, index + 1)}
+                onEnter={(text) => {
+                  handleCursorSpaceEnter(text, paragraph.id, index + 1, true)
+                }}
                 onFocus={() => setFocusedCursorSpaceId(`${paragraph.id}-${index}-remark`)}
                 isFocused={focusedCursorSpaceId === `${paragraph.id}-${index}-remark`}
                 isFirst={false}
@@ -774,7 +756,7 @@ const ParagraphComponent: React.FC<{
             </span>
             <CursorSpace
               id={`${paragraph.id}-${index}`}
-              onEnter={(text) => handleCursorSpaceEnter(text, index + 1)}
+              onEnter={(text) => handleCursorSpaceEnter(text, paragraph.id, index + 1, false)}
               onFocus={() => setFocusedCursorSpaceId(`${paragraph.id}-${index}`)}
               isFocused={focusedCursorSpaceId === `${paragraph.id}-${index}`}
               isFirst={false}
@@ -818,7 +800,10 @@ const ParagraphComponent: React.FC<{
       </p>
       <ParagraphSeparator
         id={`separator-after-${paragraph.id}`}
-        onEnter={(text) => handleSeparatorEnter(text, 'after')}
+        onEnter={(text) => {
+          handleSeparatorEnter(text, 'after')
+          onNewContent(text, 'user', 'sentence')
+        }}
         onFocus={() => setFocusedCursorSpaceId(`separator-after-${paragraph.id}`)}
         isFocused={focusedCursorSpaceId === `separator-after-${paragraph.id}`}
         isLast={isLast}
@@ -828,7 +813,14 @@ const ParagraphComponent: React.FC<{
   )
 }
 
-const InteractiveDocument: React.FC = () => {
+interface InteractiveDocumentProps {
+  onNewContent: (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark') => void
+  onContentClick: (messageId: string, type: 'sentence' | 'remark') => void
+  onNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => void
+}
+
+const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, ref) => {
+  const { onNewContent, onContentClick, onNewResponse } = props
   const [title, setTitle] = useState('Document Title')
   const [paragraphs, setParagraphs] = useState<Paragraph[]>([
     {
@@ -867,6 +859,61 @@ const InteractiveDocument: React.FC = () => {
   const [thresholdReached, setThresholdReached] = useState(false)
   const [remarks, setRemarks] = useState<{ [key: string]: string[] }>({})
 
+  useImperativeHandle(ref, () => ({
+    handleNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => {
+      // Implement the logic for handling new responses here
+      onNewContent(text, 'ai', respondingToType)
+    }
+  }))
+
+  const addSentence = useCallback((text: string, paragraphId: string, index: number, isReplacingRemark: boolean = false) => {
+    const newSentenceId = Date.now().toString()
+    setParagraphs((prevParagraphs) => {
+      const newParagraphs = prevParagraphs.map(paragraph => {
+        if (paragraph.id === paragraphId) {
+          const newSentences = [...paragraph.sentences]
+          if (isReplacingRemark && index > 0) {
+            // Remove the remark from the previous sentence
+            newSentences[index - 1] = { ...newSentences[index - 1], remarks: [], remarkColor: undefined }
+          }
+          newSentences.splice(index, 0, { id: newSentenceId, text, remarks: [], remarkColor: undefined })
+          return { ...paragraph, sentences: newSentences }
+        }
+        return paragraph
+      })
+      return newParagraphs
+    })
+    
+    // Only add to messenger if not replacing a remark
+    if (!isReplacingRemark) {
+      onNewContent(text, 'user', 'sentence')
+    }
+
+    // Set a timeout to add a remark after 5 seconds
+    setTimeout(() => addRemark(newSentenceId), 5000)
+  }, [onNewContent])
+
+  const addRemark = useCallback((sentenceId: string) => {
+    const newRemark = generateRandomSentence()
+    const pastelColor = `hsl(${Math.random() * 360}, 100%, 80%)`
+    
+    setParagraphs((prevParagraphs) => {
+      return prevParagraphs.map(paragraph => ({
+        ...paragraph,
+        sentences: paragraph.sentences.map(sentence => 
+          sentence.id === sentenceId
+            ? { ...sentence, remarks: [...(sentence.remarks || []), newRemark], remarkColor: pastelColor }
+            : sentence
+        )
+      }))
+    })
+    onNewContent(newRemark, 'ai', 'remark')
+  }, [onNewContent])
+
+  const handleCursorSpaceEnter = useCallback((text: string, paragraphId: string, index: number, isRemarkCursor: boolean = false) => {
+    addSentence(text, paragraphId, index, isRemarkCursor)
+  }, [addSentence])
+
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (newlyPlacedSentence) {
       const { initialX, initialY } = newlyPlacedSentence
@@ -889,22 +936,6 @@ const InteractiveDocument: React.FC = () => {
     }
   }, [handleMouseMove])
 
-  const addRemark = useCallback((sentenceId: string) => {
-    const newRemark = generateRandomSentence()
-    const pastelColor = `hsl(${Math.random() * 360}, 100%, 80%)`
-    
-    setParagraphs((prevParagraphs) => {
-      return prevParagraphs.map(paragraph => ({
-        ...paragraph,
-        sentences: paragraph.sentences.map(sentence => 
-          sentence.id === sentenceId
-            ? { ...sentence, remarks: [...(sentence.remarks || []), newRemark], remarkColor: pastelColor }
-            : sentence
-        )
-      }))
-    })
-  }, [])
-
   const updateParagraph = (updatedParagraph: Paragraph) => {
     setParagraphs((prevParagraphs) => {
       const newParagraphs = prevParagraphs.map((p) => (p.id === updatedParagraph.id ? updatedParagraph : p))
@@ -920,8 +951,8 @@ const InteractiveDocument: React.FC = () => {
         })
         setThresholdReached(false)
 
-        // Set a timeout to add a remark after 5 seconds
-        setTimeout(() => addRemark(newSentence.id), 5000)
+        // Remove this timeout as we're now handling it in the addSentence function
+        // setTimeout(() => addRemark(newSentence.id), 5000)
       }
       
       return newParagraphs
@@ -1043,10 +1074,9 @@ const InteractiveDocument: React.FC = () => {
             id={`separator-before-first`}
             onEnter={(text) => {
               const newParagraphId = addParagraph(0, text)
-              // Set focus to the new paragraph's last cursor space
               setFocusedCursorSpaceId(`${newParagraphId}-0`)
-              // Use setFocusParagraphId to trigger the useEffect that will handle the focus
               setFocusParagraphId(newParagraphId)
+              onNewContent(text, 'user', 'sentence')
             }}
             onFocus={() => setFocusedCursorSpaceId(`separator-before-first`)}
             isFocused={focusedCursorSpaceId === `separator-before-first`}
@@ -1069,13 +1099,16 @@ const InteractiveDocument: React.FC = () => {
               setFocusParagraphId={setFocusParagraphId}
               moveSentence={moveSentence}
               newlyPlacedSentenceId={newlyPlacedSentence?.id ?? null}
+              onNewContent={onNewContent}
+              handleCursorSpaceEnter={handleCursorSpaceEnter}
             />
           ))}
-          {/* Removed the extra cursor space here */}
         </div>
       </div>
     </DndProvider>
   )
-}
+})
+
+InteractiveDocument.displayName = 'InteractiveDocument'
 
 export default InteractiveDocument
