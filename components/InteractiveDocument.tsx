@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperat
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { generateRandomSentence } from '../utils/sentenceGenerator' // You'll need to create this utility function
+import { Messenger, Message } from './Messenger' // Add this import
 
 type Sentence = {
   id: string
@@ -40,26 +41,52 @@ type DragItem = {
   index: number
 }
 
-const CursorSpace = React.forwardRef<HTMLSpanElement, {
-  id: string
-  onEnter: (text: string) => void
-  onFocus: () => void
-  isFocused: boolean
-  isFirst: boolean
-  isLast: boolean
-  showSolidCursor: boolean
-  onMouseEnter?: () => void
-  onMouseLeave?: () => void
-  onClick?: () => void
-  isSeparator?: boolean
-  isDisabled: boolean
-  remarks?: string[]
-  remarkColor?: string
-  isRemarkCursor?: boolean
-  isRemarkExpanded?: boolean
-  isRemarkHovered?: boolean
-  isRemarkEditing?: boolean
-}>(({ id, onEnter, onFocus, isFocused, isFirst, isLast, showSolidCursor, onMouseEnter, onMouseLeave, onClick, isSeparator, isDisabled, remarks = [], remarkColor, isRemarkCursor, isRemarkExpanded, isRemarkHovered, isRemarkEditing }, ref) => {
+const CursorSpace = React.forwardRef<
+  { resetContent: () => void },
+  {
+    id: string
+    onEnter: (text: string) => void
+    onFocus: () => void
+    isFocused: boolean
+    isFirst: boolean
+    isLast: boolean
+    showSolidCursor: boolean
+    onMouseEnter?: () => void
+    onMouseLeave?: () => void
+    onClick?: () => void
+    isSeparator?: boolean
+    isDisabled: boolean
+    remarks?: string[]
+    remarkColor?: string
+    isRemarkCursor?: boolean
+    isRemarkExpanded?: boolean
+    isRemarkHovered?: boolean
+    isRemarkEditing?: boolean
+    onInput: (text: string) => void
+    onReset: () => void
+  }
+>(({ 
+  id,
+  onEnter,
+  onFocus,
+  isFocused,
+  isFirst,
+  isLast,
+  showSolidCursor,
+  onMouseEnter,
+  onMouseLeave,
+  onClick,
+  isSeparator,
+  isDisabled,
+  remarks = [],
+  remarkColor,
+  isRemarkCursor,
+  isRemarkExpanded,
+  isRemarkHovered,
+  isRemarkEditing,
+  onInput,
+  onReset
+}, ref) => {
   const [text, setText] = useState('')
   const inputRef = useRef<HTMLSpanElement | null>(null)
 
@@ -109,6 +136,24 @@ const CursorSpace = React.forwardRef<HTMLSpanElement, {
     }
   }
 
+  const handleInput = (e: React.FormEvent<HTMLSpanElement>) => {
+    const newText = e.currentTarget.textContent || ''
+    setText(newText)
+    onInput(newText)
+  }
+
+  const resetContent = () => {
+    setText('')
+    if (inputRef.current) {
+      inputRef.current.textContent = ''
+    }
+    onReset()
+  }
+
+  useImperativeHandle(ref, () => ({
+    resetContent
+  }))
+
   return (
     <span 
       id={id}
@@ -118,7 +163,7 @@ const CursorSpace = React.forwardRef<HTMLSpanElement, {
       onClick={handleClick}
     >
       {!isSeparator && !isFirst && remarks.length > 0 && (
-        <span className={`inline ${isRemarkCursor ? 'mx-[0.4em]' : ''}`}>
+        <span className={`inline ${isRemarkCursor ? '' : ''}`}>
           {isRemarkCursor && isRemarkExpanded && (
             <span
               ref={(node) => {
@@ -174,22 +219,14 @@ const CursorSpace = React.forwardRef<HTMLSpanElement, {
       )}
       {!isRemarkCursor && (
         <span
-          ref={(node) => {
-            if (node) {
-              inputRef.current = node
-              if (typeof ref === 'function') {
-                ref(node)
-              } else if (ref) {
-                ref.current = node
-              }
-            }
-          }}
+          ref={inputRef}
           contentEditable
+          spellCheck={false}
           suppressContentEditableWarning
           className={`inline-block min-w-[1ch] outline-none ${
             isFocused ? 'bg-transparent' : ''
           } ${isSeparator ? 'w-full' : ''}`}
-          onInput={(e) => setText(e.currentTarget.textContent || '')}
+          onInput={handleInput}
           onKeyDown={handleKeyDown}
           onFocus={onFocus}
         >
@@ -211,7 +248,8 @@ const SentenceComponent: React.FC<{
   isDragging: boolean
   onMouseEnter: () => void
   onMouseLeave: () => void
-}> = ({ sentence, onClick, isEditing, onInput, onSubmit, isDragging, onMouseEnter, onMouseLeave }) => {
+  onSentenceClick: (e: React.MouseEvent) => void
+}> = ({ sentence, onClick, isEditing, onInput, onSubmit, isDragging, onMouseEnter, onMouseLeave, onSentenceClick }) => {
   const ref = useRef<HTMLSpanElement>(null)
   const [localText, setLocalText] = useState(sentence.text)
   const [originalText, setOriginalText] = useState(sentence.text)
@@ -245,6 +283,7 @@ const SentenceComponent: React.FC<{
   const handleClick = (e: React.MouseEvent) => {
     if (!isEditing) {
       onClick(e)
+      onSentenceClick(e)
     }
     setIsUserClick(true)
   }
@@ -394,6 +433,7 @@ const DraggableSentence: React.FC<{
         isDragging={isDragging}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
+        onSentenceClick={onClick}
       />
     </span>
   )
@@ -477,6 +517,8 @@ const ParagraphSeparator: React.FC<{
         isSeparator={true}
         ref={cursorSpaceRef}
         isDisabled={isDisabled ?? false}
+        onInput={() => {}}
+        onReset={() => {}}
       />
     </div>
   )
@@ -501,6 +543,9 @@ const ParagraphComponent: React.FC<{
   onNewContent: (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark') => void
   handleCursorSpaceEnter: (text: string, paragraphId: string, index: number, isRemarkCursor: boolean) => void
   addRemark: (sentenceId: string) => void
+  onCursorSpaceInput: (id: string, content: string) => void
+  onCursorSpaceReset: (id: string) => void
+  cursorSpaceRefs: React.MutableRefObject<{ [key: string]: { resetContent: () => void } }>
 }> = ({ 
   paragraph, 
   updateParagraph, 
@@ -516,7 +561,10 @@ const ParagraphComponent: React.FC<{
   newlyPlacedSentenceId,
   onNewContent,
   handleCursorSpaceEnter,
-  addRemark
+  addRemark,
+  onCursorSpaceInput,
+  onCursorSpaceReset,
+  cursorSpaceRefs
 }) => {
   const [lastClickedSentenceId, setLastClickedSentenceId] = useState<string | null>(null)
   const [lastClickTime, setLastClickTime] = useState<number>(0)
@@ -593,6 +641,13 @@ const ParagraphComponent: React.FC<{
     setLastClickedSentenceId(sentenceId)
     setLastClickTime(currentTime)
     moveSentence(sentenceId, paragraph.id, paragraph.id, index)
+
+    // Clear all unfocused cursor spaces
+    Object.entries(cursorSpaceRefs.current).forEach(([id, ref]) => {
+      if (id !== cursorSpaceId) {
+        ref.resetContent()
+      }
+    })
   }
 
   const handleSentenceInput = (sentenceId: string, text: string) => {
@@ -615,6 +670,14 @@ const ParagraphComponent: React.FC<{
     // Generate a remark for the edited sentence
     // addRemark(sentenceId)
     setTimeout(() => addRemark(sentenceId), 5000)
+
+    // Focus on the new cursor space after adding the sentence
+    setTimeout(() => {
+      const newCursorSpace = document.querySelector('.cursor-space:last-of-type');
+      if (newCursorSpace) {
+        (newCursorSpace as HTMLElement).focus();
+      }
+    }, 0);
   }
 
   const handleSeparatorEnter = (text: string, position: 'before' | 'after') => {
@@ -631,19 +694,15 @@ const ParagraphComponent: React.FC<{
     setFocusedCursorSpaceId('separator-enter')
   }
 
-  const handleParagraphClick = (e: React.MouseEvent<HTMLParagraphElement>) => {
-    if (e.target === e.currentTarget) {
-      const lastCursorSpaceId = `${paragraph.id}-${paragraph.sentences.length - 1}`
-      setFocusedCursorSpaceId(lastCursorSpaceId)
-      // Force focus on the last CursorSpace
-      const lastCursorSpace = document.getElementById(lastCursorSpaceId)
-      if (lastCursorSpace) {
-        const contentEditableSpan = lastCursorSpace.querySelector('span[contenteditable]')
-        if (contentEditableSpan) {
-          (contentEditableSpan as HTMLElement).focus()
-        }
+  const handleParagraphClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    
+    // Reset all cursor spaces in this paragraph
+    Object.entries(cursorSpaceRefs.current).forEach(([id, ref]) => {
+      if (id.startsWith(paragraph.id) && id !== focusedCursorSpaceId) {
+        ref.resetContent()
       }
-    }
+    })
   }
 
   const handleParagraphMouseMove = (e: React.MouseEvent<HTMLParagraphElement>) => {
@@ -683,10 +742,12 @@ const ParagraphComponent: React.FC<{
   }
 
   const handleRemarkClick = (index: number) => {
+    // Always expand the remark when clicked
     setShowRemarkSolidCursor(false)
     setFocusedCursorSpaceId(`${paragraph.id}-${index}-remark`)
     setKeepRemarkExpanded(true)
     setEditingRemarkIndex(index)
+    setExpandedRemarkIndex(index)
   }
 
   const handleDocumentClick = useCallback((e: MouseEvent) => {
@@ -733,6 +794,19 @@ const ParagraphComponent: React.FC<{
     }
   }, [mouseHasMoved])
 
+  // Add this useEffect to focus the correct cursor space
+  useEffect(() => {
+    if (focusedCursorSpaceId) {
+      const cursorSpace = document.getElementById(focusedCursorSpaceId)
+      if (cursorSpace) {
+        const contentEditableSpan = cursorSpace.querySelector('span[contenteditable]')
+        if (contentEditableSpan) {
+          (contentEditableSpan as HTMLElement).focus()
+        }
+      }
+    }
+  }, [focusedCursorSpaceId])
+
   return (
     <>
       <p 
@@ -752,6 +826,8 @@ const ParagraphComponent: React.FC<{
           onMouseEnter={() => setIsFirstCursorSpaceHovered(true)}
           onMouseLeave={() => setIsFirstCursorSpaceHovered(false)}
           isDisabled={newlyPlacedSentenceId !== null}
+          onInput={() => {}}
+          onReset={() => {}}
         />
         {paragraph.sentences.map((sentence, index) => (
           <React.Fragment key={sentence.id}>
@@ -788,6 +864,8 @@ const ParagraphComponent: React.FC<{
                 isRemarkExpanded={expandedRemarkIndex === index}
                 isRemarkHovered={hoveredRemarkIndex === index}
                 isRemarkEditing={editingRemarkIndex === index}
+                onInput={(text) => onCursorSpaceInput(`${paragraph.id}-${index}-remark`, text)}
+                onReset={() => onCursorSpaceReset(`${paragraph.id}-${index}-remark`)}
               />
             </span>
             <CursorSpace
@@ -822,6 +900,13 @@ const ParagraphComponent: React.FC<{
                 }
               }}
               isDisabled={newlyPlacedSentenceId !== null}
+              onInput={(text) => onCursorSpaceInput(`${paragraph.id}-${index}`, text)}
+              onReset={() => onCursorSpaceReset(`${paragraph.id}-${index}`)}
+              ref={(el) => {
+                if (el) {
+                  cursorSpaceRefs.current[`${paragraph.id}-${index}`] = el
+                }
+              }}
             />
             {/* Add a space after each sentence except the last one */}
             {index < paragraph.sentences.length - 1 && ' '}
@@ -840,7 +925,15 @@ const ParagraphComponent: React.FC<{
           handleSeparatorEnter(text, 'after')
           onNewContent(text, 'user', 'sentence')
         }}
-        onFocus={() => setFocusedCursorSpaceId(`separator-after-${paragraph.id}`)}
+        onFocus={() => {
+          setFocusedCursorSpaceId(`separator-after-${paragraph.id}`)
+          // Reset all other cursor spaces
+          Object.entries(cursorSpaceRefs.current).forEach(([id, ref]) => {
+            if (id !== `separator-after-${paragraph.id}`) {
+              ref.resetContent()
+            }
+          })
+        }}
         isFocused={focusedCursorSpaceId === `separator-after-${paragraph.id}`}
         isLast={isLast}
         isDisabled={newlyPlacedSentenceId !== null}
@@ -894,6 +987,11 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   const mouseMoveThreshold = 30
   const [thresholdReached, setThresholdReached] = useState(false)
   const [remarks, setRemarks] = useState<{ [key: string]: string[] }>({})
+  const [selectedSentenceId, setSelectedSentenceId] = useState<string | null>(null)
+  const [messages, setMessages] = useState<Message[]>([]) // Add this state for messages
+  const inputRef = useRef<HTMLInputElement>(null) // Add this ref for the input
+  const [cursorSpaceContent, setCursorSpaceContent] = useState<{ [key: string]: string }>({})
+  const cursorSpaceRefs = useRef<{ [key: string]: { resetContent: () => void } }>({})
 
   useImperativeHandle(ref, () => ({
     handleNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => {
@@ -909,7 +1007,6 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
         if (paragraph.id === paragraphId) {
           const newSentences = [...paragraph.sentences]
           if (isReplacingRemark && index > 0) {
-            // Remove the remark from the previous sentence
             newSentences[index - 1] = { ...newSentences[index - 1], remarks: [], remarkColor: undefined }
           }
           newSentences.splice(index, 0, { id: newSentenceId, text, remarks: [], remarkColor: undefined })
@@ -920,12 +1017,16 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
       return newParagraphs
     })
     
-    // Always add to messenger, even when replacing a remark
     onNewContent(text, 'user', 'sentence')
+
+    // Focus on the next cursor space after the new sentence
+    setTimeout(() => {
+      setFocusedCursorSpaceId(`${paragraphId}-${index}`)
+    }, 0)
 
     // Set a timeout to add a remark after 5 seconds
     setTimeout(() => addRemark(newSentenceId), 5000)
-  }, [onNewContent])
+  }, [onNewContent, setFocusedCursorSpaceId])
 
   const addRemark = useCallback((sentenceId: string) => {
     const newRemark = generateRandomSentence()
@@ -1100,7 +1201,91 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
         setFocusedCursorSpaceId(lastCursorSpaceId)
       }
     }
-  }, [paragraphs])
+
+    // Reset all cursor spaces except the focused one
+    Object.entries(cursorSpaceRefs.current).forEach(([id, ref]) => {
+      if (id !== focusedCursorSpaceId) {
+        ref.resetContent()
+      }
+    })
+  }, [paragraphs, focusedCursorSpaceId])
+
+  const handleNewMessage = useCallback((text: string) => {
+    if (selectedSentenceId) {
+      // Find the paragraph and sentence index of the selected sentence
+      let targetParagraphIndex = -1
+      
+      for (let i = 0; i < paragraphs.length; i++) {
+        const sentenceIndex = paragraphs[i].sentences.findIndex(s => s.id === selectedSentenceId)
+        if (sentenceIndex !== -1) {
+          targetParagraphIndex = i
+          break
+        }
+      }
+
+      if (targetParagraphIndex !== -1) {
+        // Create a new paragraph with the new sentence
+        const newParagraphId = Date.now().toString()
+        const newSentence: Sentence = { id: `${newParagraphId}-1`, text, remarks: [], remarkColor: undefined }
+        const newParagraph: Paragraph = { id: newParagraphId, sentences: [newSentence] }
+
+        // Insert the new paragraph after the one containing the selected sentence
+        setParagraphs(prevParagraphs => {
+          const newParagraphs = [...prevParagraphs]
+          newParagraphs.splice(targetParagraphIndex + 1, 0, newParagraph)
+          return newParagraphs
+        })
+
+        // Reset the selected sentence
+        setSelectedSentenceId(null)
+
+        // Call onNewContent
+        onNewContent(text, 'user', 'sentence')
+
+        // Focus on the new cursor space after adding the sentence
+        setTimeout(() => {
+          setFocusedCursorSpaceId(`${newParagraphId}-0`)
+        }, 0)
+
+        // Set a timeout to add a remark after 5 seconds
+        setTimeout(() => addRemark(`${newParagraphId}-1`), 5000)
+      } else {
+        // If the selected sentence wasn't found, add the sentence to the end
+        addSentence(text, paragraphs[paragraphs.length - 1].id, paragraphs[paragraphs.length - 1].sentences.length)
+      }
+    } else {
+      // If no sentence was selected, add the sentence to the end
+      addSentence(text, paragraphs[paragraphs.length - 1].id, paragraphs[paragraphs.length - 1].sentences.length)
+    }
+
+    // Add the new message to the messages state
+    setMessages(prevMessages => [...prevMessages, {
+      id: Date.now().toString(),
+      text,
+      sender: 'user',
+      type: 'sentence'
+    }])
+  }, [paragraphs, selectedSentenceId, addSentence, onNewContent, setFocusedCursorSpaceId, addRemark])
+
+  const handleMessageClick = useCallback((messageId: string, type: 'sentence' | 'remark') => {
+    if (type === 'sentence') {
+      setSelectedSentenceId(messageId)
+    } else {
+      setSelectedSentenceId(null)
+    }
+  }, [])
+
+  const handleCursorSpaceInput = useCallback((id: string, content: string) => {
+    setCursorSpaceContent(prev => ({ ...prev, [id]: content }))
+  }, [])
+
+  const handleCursorSpaceReset = useCallback((id: string) => {
+    setCursorSpaceContent(prev => {
+      const newContent = { ...prev }
+      delete newContent[id]
+      return newContent
+    })
+  }, [])
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -1112,6 +1297,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
           <h1
             className="text-3xl font-bold mb-4"
             contentEditable
+            spellCheck={false}
             suppressContentEditableWarning
             onBlur={(e) => setTitle(e.currentTarget.textContent || '')}
           >
@@ -1150,10 +1336,21 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
               onNewContent={onNewContent}
               handleCursorSpaceEnter={handleCursorSpaceEnter}
               addRemark={addRemark}
+              onCursorSpaceInput={handleCursorSpaceInput}
+              onCursorSpaceReset={handleCursorSpaceReset}
+              cursorSpaceRefs={cursorSpaceRefs}
             />
           ))}
         </div>
       </div>
+      <Messenger
+        messages={messages}
+        onNewMessage={handleNewMessage}
+        onMessageClick={handleMessageClick}
+        selectedMessageId={selectedSentenceId}
+        selectedMessageType={selectedSentenceId ? 'sentence' : null}
+        inputRef={inputRef}
+      />
     </DndProvider>
   )
 })

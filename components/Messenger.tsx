@@ -1,4 +1,4 @@
-import React, { useState, forwardRef } from 'react'
+import React, { useState, forwardRef, useCallback, useEffect } from 'react'
 
 export interface Message {
   id: string
@@ -25,6 +25,8 @@ export function Messenger({
   inputRef,
 }: MessengerProps) {
   const [inputText, setInputText] = useState('')
+  const [emphasizedMessageId, setEmphasizedMessageId] = useState<string | null>(null)
+  const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,8 +36,29 @@ export function Messenger({
     }
   }
 
+  const handleMessageClick = useCallback((messageId: string, type: 'sentence' | 'remark') => {
+    setEmphasizedMessageId(messageId)
+    onMessageClick(messageId, type)
+    if (inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [onMessageClick, inputRef])
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!(event.target as Element).closest('.messenger-container')) {
+        setEmphasizedMessageId(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full messenger-container">
       <div className="flex-grow overflow-auto pb-4">
         {messages.map((message) => (
           <div
@@ -43,12 +66,14 @@ export function Messenger({
             className={`p-2 mb-2 rounded cursor-pointer transition-all duration-200 ${
               message.sender === 'user' ? 'bg-gray-800 ml-auto' : 'bg-gray-700'
             } ${
-              selectedMessageId === message.id && selectedMessageType === message.type
-                ? 'border-2 border-blue-500'
-                : ''
+              hoveredMessageId === message.id ? 'bg-opacity-80' : ''
+            } ${
+              emphasizedMessageId === message.id ? 'border-2 border-white bg-opacity-70' : ''
             }`}
             style={{ maxWidth: '80%' }}
-            onClick={() => onMessageClick(message.id, message.type)}
+            onClick={() => handleMessageClick(message.id, message.type)}
+            onMouseEnter={() => setHoveredMessageId(message.id)}
+            onMouseLeave={() => setHoveredMessageId(null)}
           >
             {message.text}
           </div>
