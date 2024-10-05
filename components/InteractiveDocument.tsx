@@ -613,7 +613,8 @@ const ParagraphComponent: React.FC<{
     setFocusedCursorSpaceId(`${paragraph.id}-${index}`)
     
     // Generate a remark for the edited sentence
-    addRemark(sentenceId)
+    // addRemark(sentenceId)
+    setTimeout(() => addRemark(sentenceId), 5000)
   }
 
   const handleSeparatorEnter = (text: string, position: 'before' | 'after') => {

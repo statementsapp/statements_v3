@@ -36,7 +36,7 @@ export function Messenger({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-grow overflow-auto">
+      <div className="flex-grow overflow-auto pb-4">
         {messages.map((message) => (
           <div
             key={message.id}
@@ -54,15 +54,17 @@ export function Messenger({
           </div>
         ))}
       </div>
-      <form onSubmit={handleSubmit} className="flex flex-shrink-0 mt-4">
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          className="flex-grow bg-gray-800 text-white border border-gray-700 rounded p-2"
-        />
-      </form>
+      <div className="flex-shrink-0 sticky bottom-0 bg-black pt-2 pb-4">
+        <form onSubmit={handleSubmit} className="flex">
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            className="flex-grow bg-gray-800 text-white border border-gray-700 rounded p-2"
+          />
+        </form>
+      </div>
     </div>
   )
 }
