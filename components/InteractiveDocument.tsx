@@ -163,15 +163,8 @@ const CursorSpace = React.forwardRef<HTMLSpanElement, {
               </span>
             ) : (
               <span 
-                className="text-gray-500 inline-block"
-                style={{
-                  fontSize: '0.8em',
-                  lineHeight: '1',
-                  verticalAlign: 'super',
-                  position: 'relative',
-                  top: '-0.1em',
-                  marginLeft: '-0.05em',
-                }}
+                className="text-white inline-block" 
+                style={{ verticalAlign: 'sub', fontSize: '0.8em' }}
               >
                 ⊕
               </span>
@@ -214,18 +207,26 @@ const SentenceComponent: React.FC<{
   onClick: (e: React.MouseEvent) => void
   isEditing: boolean
   onInput: (text: string) => void
+  onSubmit: (text: string) => void
   isDragging: boolean
   onMouseEnter: () => void
   onMouseLeave: () => void
-}> = ({ sentence, onClick, isEditing, onInput, isDragging, onMouseEnter, onMouseLeave }) => {
+}> = ({ sentence, onClick, isEditing, onInput, onSubmit, isDragging, onMouseEnter, onMouseLeave }) => {
   const ref = useRef<HTMLSpanElement>(null)
   const [localText, setLocalText] = useState(sentence.text)
-  const [selectionStart, setSelectionStart] = useState(0)
-  const [selectionEnd, setSelectionEnd] = useState(0)
+  const [originalText, setOriginalText] = useState(sentence.text)
+  const [isUserClick, setIsUserClick] = useState(false)
 
   useEffect(() => {
     setLocalText(sentence.text)
+    setOriginalText(sentence.text)
   }, [sentence.text])
+
+  useEffect(() => {
+    if (isEditing) {
+      setOriginalText(localText)
+    }
+  }, [isEditing])
 
   useEffect(() => {
     if (isEditing && ref.current) {
@@ -233,45 +234,60 @@ const SentenceComponent: React.FC<{
       const range = document.createRange()
       const sel = window.getSelection()
       if (sel) {
-        range.setStart(ref.current.firstChild || ref.current, selectionStart)
-        range.setEnd(ref.current.firstChild || ref.current, selectionEnd)
+        range.selectNodeContents(ref.current)
+        range.collapse(false)
         sel.removeAllRanges()
         sel.addRange(range)
       }
     }
-  }, [isEditing, selectionStart, selectionEnd])
+  }, [isEditing])
 
   const handleClick = (e: React.MouseEvent) => {
     if (!isEditing) {
       onClick(e)
-    } else {
-      const selection = window.getSelection()
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0)
-        setSelectionStart(range.startOffset)
-        setSelectionEnd(range.endOffset)
-      }
     }
-  }
-
-  const handleInput = (e: React.FormEvent<HTMLSpanElement>) => {
-    const newText = e.currentTarget.textContent || ''
-    setLocalText(newText)
-    onInput(newText)
-
-    const selection = window.getSelection()
-    if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0)
-      setSelectionStart(range.startOffset)
-      setSelectionEnd(range.endOffset)
-    }
+    setIsUserClick(true)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLSpanElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
+      if (ref.current) {
+        onSubmit(ref.current.textContent || '')
+      }
     }
   }
+
+  const handleBlur = (e: React.FocusEvent) => {
+    if (isUserClick) {
+      setLocalText(originalText)
+      if (ref.current) {
+        ref.current.textContent = originalText
+      }
+      onInput(originalText)
+    } else {
+      if (ref.current) {
+        const newText = ref.current.textContent || ''
+        setLocalText(newText)
+        onInput(newText)
+      }
+    }
+    setIsUserClick(false)
+  }
+
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setIsUserClick(true)
+      }
+    }
+
+    document.addEventListener('mousedown', handleGlobalClick)
+
+    return () => {
+      document.removeEventListener('mousedown', handleGlobalClick)
+    }
+  }, [])
 
   return (
     <span
@@ -280,12 +296,13 @@ const SentenceComponent: React.FC<{
       onClick={handleClick}
       contentEditable={isEditing}
       suppressContentEditableWarning
-      onInput={handleInput}
       onKeyDown={handleKeyDown}
+      onBlur={handleBlur}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      dangerouslySetInnerHTML={{ __html: localText }}
-    />
+    >
+      {localText}
+    </span>
   )
 }
 
@@ -297,9 +314,10 @@ const DraggableSentence: React.FC<{
   onClick: (e: React.MouseEvent) => void
   isEditing: boolean
   onInput: (text: string) => void
+  onSubmit: (text: string) => void
   onMouseEnter: () => void
   onMouseLeave: () => void
-}> = ({ sentence, paragraphId, index, moveSentence, onClick, isEditing, onInput, onMouseEnter, onMouseLeave }) => {
+}> = ({ sentence, paragraphId, index, moveSentence, onClick, isEditing, onInput, onSubmit, onMouseEnter, onMouseLeave }) => {
   const ref = useRef<HTMLSpanElement>(null)
   const [{ isDragging }, drag] = useDrag({
     type: 'SENTENCE',
@@ -372,6 +390,7 @@ const DraggableSentence: React.FC<{
         onClick={onClick}
         isEditing={isEditing}
         onInput={onInput}
+        onSubmit={onSubmit}
         isDragging={isDragging}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
@@ -579,7 +598,17 @@ const ParagraphComponent: React.FC<{
       s.id === sentenceId ? { ...s, text } : s
     )
     updateParagraph({ ...paragraph, sentences: newSentences })
+    // Remove the onNewContent call from here
+  }
+
+  const handleSentenceSubmit = (sentenceId: string, text: string, index: number) => {
+    const newSentences = paragraph.sentences.map((s) =>
+      s.id === sentenceId ? { ...s, text } : s
+    )
+    updateParagraph({ ...paragraph, sentences: newSentences })
     onNewContent(text, 'user', 'sentence')
+    setEditingSentenceId(null)
+    setFocusedCursorSpaceId(`${paragraph.id}-${index}`)
   }
 
   const handleSeparatorEnter = (text: string, position: 'before' | 'after') => {
@@ -728,6 +757,7 @@ const ParagraphComponent: React.FC<{
               onClick={(e) => handleSentenceClick(sentence.id, index, e)}
               isEditing={editingSentenceId === sentence.id}
               onInput={(text) => handleSentenceInput(sentence.id, text)}
+              onSubmit={(text) => handleSentenceSubmit(sentence.id, text, index)}
               onMouseEnter={() => mouseHasMoved && setHoveredSentenceIndex(index)}
               onMouseLeave={() => mouseHasMoved && setHoveredSentenceIndex(null)}
             />
