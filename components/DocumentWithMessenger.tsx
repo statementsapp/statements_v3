@@ -12,6 +12,8 @@ export default function DocumentWithMessenger({
   onMessageClick,
 }: DocumentWithMessengerProps) {
   const [messages, setMessages] = useState<Message[]>([])
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null)
+  const [selectedMessageType, setSelectedMessageType] = useState<'sentence' | 'remark' | null>(null)
   const documentRef = useRef<any>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -50,11 +52,10 @@ export default function DocumentWithMessenger({
     [handleNewContent]
   )
 
-  const handleMessageClick = useCallback((messageId: string, type: 'sentence' | 'remark') => {
+  const handleMessageClickInternal = useCallback((messageId: string, type: 'sentence' | 'remark') => {
+    setSelectedMessageId(messageId)
+    setSelectedMessageType(type)
     onMessageClick(messageId, type)
-    if (inputRef.current) {
-      inputRef.current.focus()
-    }
   }, [onMessageClick])
 
   return (
@@ -70,13 +71,13 @@ export default function DocumentWithMessenger({
             onNewResponse={handleNewResponse}
           />
         </div>
-        <div className="w-1/3 p-6 bg-black">
+        <div className="w-1/3 p-6 bg-black flex flex-col">
           <Messenger
             messages={messages}
             onNewMessage={handleNewMessage}
-            onMessageClick={handleMessageClick}
-            selectedMessageId={null}
-            selectedMessageType={null}
+            onMessageClick={handleMessageClickInternal}
+            selectedMessageId={selectedMessageId}
+            selectedMessageType={selectedMessageType}
             inputRef={inputRef}
           />
         </div>

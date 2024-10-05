@@ -500,6 +500,7 @@ const ParagraphComponent: React.FC<{
   newlyPlacedSentenceId: string | null
   onNewContent: (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark') => void
   handleCursorSpaceEnter: (text: string, paragraphId: string, index: number, isRemarkCursor: boolean) => void
+  addRemark: (sentenceId: string) => void
 }> = ({ 
   paragraph, 
   updateParagraph, 
@@ -514,7 +515,8 @@ const ParagraphComponent: React.FC<{
   moveSentence,
   newlyPlacedSentenceId,
   onNewContent,
-  handleCursorSpaceEnter
+  handleCursorSpaceEnter,
+  addRemark
 }) => {
   const [lastClickedSentenceId, setLastClickedSentenceId] = useState<string | null>(null)
   const [lastClickTime, setLastClickTime] = useState<number>(0)
@@ -609,6 +611,9 @@ const ParagraphComponent: React.FC<{
     onNewContent(text, 'user', 'sentence')
     setEditingSentenceId(null)
     setFocusedCursorSpaceId(`${paragraph.id}-${index}`)
+    
+    // Generate a remark for the edited sentence
+    addRemark(sentenceId)
   }
 
   const handleSeparatorEnter = (text: string, position: 'before' | 'after') => {
@@ -1085,9 +1090,23 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     }
   }, [newlyPlacedSentence, resetNewlyPlacedSentence])
 
+  const handleDocumentClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      if (paragraphs.length > 0) {
+        const lastParagraph = paragraphs[paragraphs.length - 1]
+        const lastSentenceIndex = lastParagraph.sentences.length - 1
+        const lastCursorSpaceId = `${lastParagraph.id}-${lastSentenceIndex}`
+        setFocusedCursorSpaceId(lastCursorSpaceId)
+      }
+    }
+  }, [paragraphs])
+
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="document-container">
+      <div 
+        className="document-container min-h-screen" 
+        onClick={handleDocumentClick}
+      >
         <div className="document-content">
           <h1
             className="text-3xl font-bold mb-4"
@@ -1129,6 +1148,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
               newlyPlacedSentenceId={newlyPlacedSentence?.id ?? null}
               onNewContent={onNewContent}
               handleCursorSpaceEnter={handleCursorSpaceEnter}
+              addRemark={addRemark}
             />
           ))}
         </div>

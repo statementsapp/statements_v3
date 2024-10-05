@@ -36,25 +36,25 @@ export function Messenger({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-grow overflow-auto mb-4">
+      <div className="flex-grow overflow-auto">
         {messages.map((message) => (
           <div
             key={message.id}
-            className={`p-2 mb-2 rounded cursor-pointer ${
+            className={`p-2 mb-2 rounded cursor-pointer transition-all duration-200 ${
               message.sender === 'user' ? 'bg-gray-800 ml-auto' : 'bg-gray-700'
             } ${
               selectedMessageId === message.id && selectedMessageType === message.type
                 ? 'border-2 border-blue-500'
                 : ''
             }`}
-            style={{ maxWidth: '80%', cursor: 'pointer' }}
+            style={{ maxWidth: '80%' }}
             onClick={() => onMessageClick(message.id, message.type)}
           >
             {message.text}
           </div>
         ))}
       </div>
-      <form onSubmit={handleSubmit} className="flex">
+      <form onSubmit={handleSubmit} className="flex flex-shrink-0 mt-4">
         <input
           ref={inputRef}
           type="text"
