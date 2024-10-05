@@ -884,10 +884,8 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
       return newParagraphs
     })
     
-    // Only add to messenger if not replacing a remark
-    if (!isReplacingRemark) {
-      onNewContent(text, 'user', 'sentence')
-    }
+    // Always add to messenger, even when replacing a remark
+    onNewContent(text, 'user', 'sentence')
 
     // Set a timeout to add a remark after 5 seconds
     setTimeout(() => addRemark(newSentenceId), 5000)
