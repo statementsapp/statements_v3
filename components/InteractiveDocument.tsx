@@ -14,6 +14,7 @@ type Remark = {
 
 type Sentence = {
   id: string
+  sentenceId: string // Add this line
   text: string
   remarks: Remark[]
   remarkColor?: string
@@ -546,7 +547,7 @@ const ParagraphComponent: React.FC<{
   setFocusParagraphId: (id: string | null) => void
   moveSentence: (sentenceId: string, sourceParagraphId: string, targetParagraphId: string, targetIndex: number) => void
   newlyPlacedSentenceId: string | null
-  onNewContent: (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string) => void
+  onNewContent: (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string, sentenceId?: string) => void
   handleCursorSpaceEnter: (text: string, paragraphId: string, index: number, isRemarkCursor: boolean) => void
   addRemark: (sentenceId: string) => void
   onCursorSpaceInput: (id: string, content: string) => void
@@ -926,7 +927,7 @@ const ParagraphComponent: React.FC<{
 }
 
 interface InteractiveDocumentProps {
-  onNewContent: (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string) => void
+  onNewContent: (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string, sentenceId?: string) => void
   onContentClick: (messageId: string, type: 'sentence' | 'remark') => void
   onNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => void
   onRemarkHover: (remarkId: string | null, remarkText: string | null) => void // Updated this prop
@@ -943,28 +944,28 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     {
       id: '1',
       sentences: [
-        { id: '1', text: 'This is the first sentence of the first paragraph.', remarks: [], remarkColor: undefined },
-        { id: '2', text: 'Here is the second sentence.', remarks: [], remarkColor: undefined },
-        { id: '3', text: 'The third sentence follows.', remarks: [], remarkColor: undefined },
-        { id: '4', text: 'This is the fourth and final sentence of the first paragraph.', remarks: [], remarkColor: undefined },
+        { id: '1', sentenceId: '1', text: 'This is the first sentence of the first paragraph.', remarks: [], remarkColor: undefined },
+        { id: '2', sentenceId: '2', text: 'Here is the second sentence.', remarks: [], remarkColor: undefined },
+        { id: '3', sentenceId: '3', text: 'The third sentence follows.', remarks: [], remarkColor: undefined },
+        { id: '4', sentenceId: '4', text: 'This is the fourth and final sentence of the first paragraph.', remarks: [], remarkColor: undefined },
       ],
     },
     {
       id: '2',
       sentences: [
-        { id: '5', text: 'The second paragraph begins with this sentence.', remarks: [], remarkColor: undefined },
-        { id: '6', text: 'Here is the second sentence of the second paragraph.', remarks: [], remarkColor: undefined },
-        { id: '7', text: 'The third sentence continues the thought.', remarks: [], remarkColor: undefined },
-        { id: '8', text: 'This final sentence concludes the second paragraph.', remarks: [], remarkColor: undefined },
+        { id: '5', sentenceId: '5', text: 'The second paragraph begins with this sentence.', remarks: [], remarkColor: undefined },
+        { id: '6', sentenceId: '6', text: 'Here is the second sentence of the second paragraph.', remarks: [], remarkColor: undefined },
+        { id: '7', sentenceId: '7', text: 'The third sentence continues the thought.', remarks: [], remarkColor: undefined },
+        { id: '8', sentenceId: '8', text: 'This final sentence concludes the second paragraph.', remarks: [], remarkColor: undefined },
       ],
     },
     {
       id: '3',
       sentences: [
-        { id: '9', text: 'The third paragraph begins with this sentence.', remarks: [], remarkColor: undefined },
-        { id: '10', text: 'Look at this sentence', remarks: [], remarkColor: undefined },
-        { id: '11', text: 'The third sentence continues the thought.', remarks: [], remarkColor: undefined },
-        { id: '12', text: 'So much sentence and this is the final sentence of this paragraph.', remarks: [], remarkColor: undefined },
+        { id: '9', sentenceId: '9', text: 'The third paragraph begins with this sentence.', remarks: [], remarkColor: undefined },
+        { id: '10', sentenceId: '10', text: 'Look at this sentence', remarks: [], remarkColor: undefined },
+        { id: '11', sentenceId: '11', text: 'The third sentence continues the thought.', remarks: [], remarkColor: undefined },
+        { id: '12', sentenceId: '12', text: 'So much sentence and this is the final sentence of this paragraph.', remarks: [], remarkColor: undefined },
       ],
     },
   ])
@@ -1004,14 +1005,14 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
           sentence.id === sentenceId
             ? { 
                 ...sentence, 
-                remarks: [...(sentence.remarks || []), { id: newRemarkId, text: newRemarkText, sentenceId }], // Add sentenceId here
+                remarks: [...(sentence.remarks || []), { id: newRemarkId, text: newRemarkText, sentenceId }],
                 remarkColor: sentence.remarkColor || pastelColor
               }
             : sentence
         )
       }))
     })
-    onNewContent(newRemarkText, 'ai', 'remark', newRemarkId)
+    onNewContent(newRemarkText, 'ai', 'remark', newRemarkId, sentenceId)
     return newRemarkId
   }, [onNewContent])
 
@@ -1025,7 +1026,13 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
           if (isReplacingRemark && index > 0) {
             newSentences[index - 1] = { ...newSentences[index - 1], remarks: [], remarkColor: undefined }
           }
-          newSentences.splice(index, 0, { id: newSentenceId, text, remarks: [], remarkColor: undefined })
+          newSentences.splice(index, 0, { 
+            id: newSentenceId, 
+            sentenceId: newSentenceId, // Add this line to set sentenceId
+            text, 
+            remarks: [], 
+            remarkColor: undefined 
+          })
           return { ...paragraph, sentences: newSentences }
         }
         return paragraph
@@ -1034,7 +1041,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     })
     
     // Create the message here
-    onNewContent(text, 'user', 'sentence', newSentenceId)
+    onNewContent(text, 'user', 'sentence', newSentenceId, newSentenceId) // Add sentenceId here
 
     // Focus on the next cursor space after the new sentence
     setTimeout(() => {
@@ -1104,7 +1111,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     console.log('New sentence ID created for new paragraph:', newSentenceId) // Add this log
     const newParagraph: Paragraph = {
       id: newParagraphId,
-      sentences: [{ id: newSentenceId, text, remarks: [], remarkColor: undefined }],
+      sentences: [{ id: newSentenceId, sentenceId: newSentenceId, text, remarks: [], remarkColor: undefined }],
     }
     setParagraphs((prevParagraphs) => {
       const newParagraphs = [...prevParagraphs]
@@ -1237,7 +1244,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
         console.log('New paragraph ID created in handleNewMessage:', newParagraphId)
         newSentenceId = `${newParagraphId}-1`
         console.log('New sentence ID created in handleNewMessage:', newSentenceId)
-        const newSentence: Sentence = { id: newSentenceId, text, remarks: [], remarkColor: undefined }
+        const newSentence: Sentence = { id: newSentenceId, sentenceId: newSentenceId, text, remarks: [], remarkColor: undefined }
         const newParagraph: Paragraph = { id: newParagraphId, sentences: [newSentence] }
 
         // Insert the new paragraph after the one containing the selected sentence

@@ -23,12 +23,13 @@ export default function DocumentWithMessenger({
   const [emphasizedMessageId, setEmphasizedMessageId] = useState<string | null>(null)
 
   const handleNewContent = useCallback(
-    (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string) => {
+    (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string, sentenceId?: string) => {
       const newMessage: Message = {
         id,
         text,
         sender,
         type,
+        sentenceId: type === 'remark' ? sentenceId : undefined,
       }
       setMessages((prevMessages) => [...prevMessages, newMessage])
       console.log('New message added:', newMessage)
@@ -38,10 +39,11 @@ export default function DocumentWithMessenger({
 
   const handleNewMessage = useCallback(
     (text: string, emphasizedSentenceId: string | null, emphasizedMessageId: string | null) => {
-      if (documentRef.current) {
-        const newSentenceId = documentRef.current.addSentence(text, emphasizedSentenceId, emphasizedMessageId);
-        console.log('New sentence added:', newSentenceId, 'Responding to:', emphasizedSentenceId, emphasizedMessageId);
-      }
+      console.log('handleNewMessage called with:', {
+        text,
+        emphasizedSentenceId,
+        emphasizedMessageId
+      })
     },
     []
   )

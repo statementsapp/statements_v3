@@ -1,10 +1,11 @@
 import React, { useState, useCallback, useEffect } from 'react'
 
-export interface Message {
+export type Message = {
   id: string
   text: string
   sender: 'user' | 'ai'
   type: 'sentence' | 'remark'
+  sentenceId?: string // Change this to be optional
 }
 
 interface MessengerProps {
@@ -44,6 +45,8 @@ export function Messenger({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (inputText.trim()) {
+      console.log("emphasized message Id: ", emphasizedMessageId)
+      console.log("emphasized sentence id: ", emphasizedSentenceId)
       onNewMessage(inputText.trim(), emphasizedSentenceId, emphasizedMessageId)
       setInputText('')
     }
