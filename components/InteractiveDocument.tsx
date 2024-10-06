@@ -950,7 +950,7 @@ interface InteractiveDocumentProps {
 
 const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, ref) => {
   const { onNewContent, onContentClick, onNewResponse } = props
-  const [title, setTitle] = useState('Document Title')
+  const [title, setTitle] = useState('Untitled')
   const [paragraphs, setParagraphs] = useState<Paragraph[]>([
     {
       id: '1',
