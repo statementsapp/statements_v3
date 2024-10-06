@@ -37,9 +37,10 @@ export default function DocumentWithMessenger({
   )
 
   const handleNewMessage = useCallback(
-    (text: string) => {
+    (text: string, emphasizedSentenceId: string | null, emphasizedMessageId: string | null) => {
       if (documentRef.current) {
-        const newSentenceId = documentRef.current.addSentence(text);
+        const newSentenceId = documentRef.current.addSentence(text, emphasizedSentenceId, emphasizedMessageId);
+        console.log('New sentence added:', newSentenceId, 'Responding to:', emphasizedSentenceId, emphasizedMessageId);
       }
     },
     []
@@ -149,6 +150,7 @@ export default function DocumentWithMessenger({
             inputRef={inputRef}
             hoveredRemarkId={hoveredRemarkId}
             emphasizedMessageId={emphasizedMessageId}
+            emphasizedSentenceId={emphasizedSentenceId} // Add this prop
           />
         </div>
       </div>

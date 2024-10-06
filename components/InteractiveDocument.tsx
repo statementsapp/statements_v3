@@ -9,6 +9,7 @@ import { Messenger, Message, MessengerProps } from './Messenger' // Update this 
 type Remark = {
   id: string;
   text: string;
+  sentenceId: string; // Add this line
 }
 
 type Sentence = {
@@ -993,7 +994,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   const addRemark = useCallback((sentenceId: string) => {
     const newRemarkText = generateRandomSentence()
     const newRemarkId = `remark-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-    console.log('New remark ID created:', newRemarkId) // Add this log
+    console.log('New remark ID created:', newRemarkId)
     const pastelColor = `hsl(${Math.random() * 360}, 100%, 80%)`
     
     setParagraphs((prevParagraphs) => {
@@ -1003,7 +1004,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
           sentence.id === sentenceId
             ? { 
                 ...sentence, 
-                remarks: [...(sentence.remarks || []), { id: newRemarkId, text: newRemarkText }],
+                remarks: [...(sentence.remarks || []), { id: newRemarkId, text: newRemarkText, sentenceId }], // Add sentenceId here
                 remarkColor: sentence.remarkColor || pastelColor
               }
             : sentence
@@ -1011,7 +1012,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
       }))
     })
     onNewContent(newRemarkText, 'ai', 'remark', newRemarkId)
-    return newRemarkId // Return the new remark ID
+    return newRemarkId
   }, [onNewContent])
 
   const addSentence = useCallback((text: string, paragraphId: string, index: number, isReplacingRemark: boolean = false) => {

@@ -9,13 +9,14 @@ export interface Message {
 
 interface MessengerProps {
   messages: Message[]
-  onNewMessage: (text: string, emphasizedMessageId: string | null) => void
+  onNewMessage: (text: string, emphasizedSentenceId: string | null, emphasizedMessageId: string | null) => void
   onMessageClick: (messageId: string, type: 'sentence' | 'remark') => void
   selectedMessageId: string | null
   selectedMessageType: 'sentence' | 'remark' | null
   inputRef: React.RefObject<HTMLInputElement>
   hoveredRemarkId: string | null
   emphasizedMessageId: string | null
+  emphasizedSentenceId: string | null // Add this prop
 }
 
 export function Messenger({
@@ -27,6 +28,7 @@ export function Messenger({
   inputRef,
   hoveredRemarkId,
   emphasizedMessageId,
+  emphasizedSentenceId, // Add this prop
 }: MessengerProps) {
   const [inputText, setInputText] = useState('')
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null)
@@ -42,7 +44,7 @@ export function Messenger({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (inputText.trim()) {
-      onNewMessage(inputText.trim(), emphasizedMessageId)
+      onNewMessage(inputText.trim(), emphasizedSentenceId, emphasizedMessageId)
       setInputText('')
     }
   }
