@@ -17,6 +17,8 @@ export default function DocumentWithMessenger({
   const documentRef = useRef<any>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [hoveredRemarkId, setHoveredRemarkId] = useState<string | null>(null);
+  const [emphasizedRemarkId, setEmphasizedRemarkId] = useState<string | null>(null)
+  const [emphasizedSentenceId, setEmphasizedSentenceId] = useState<string | null>(null)
 
   const handleNewContent = useCallback(
     (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string) => {
@@ -69,6 +71,15 @@ export default function DocumentWithMessenger({
     setHoveredRemarkId(remarkId);
   }, [])
 
+  const handleEmphasizeRemark = useCallback((remarkId: string | null, sentenceId: string | null) => {
+    setEmphasizedRemarkId(remarkId)
+    setEmphasizedSentenceId(sentenceId)
+  }, [])
+
+  const handleRemarkClick = useCallback((sentenceId: string) => {
+    console.log('⊕ clicked for sentence:', sentenceId)
+  }, [])
+
   return (
     <div className="flex justify-center min-h-screen bg-black text-white">
       <div className="flex w-full max-w-7xl mx-auto">
@@ -84,6 +95,8 @@ export default function DocumentWithMessenger({
             onRemarkAction={(remarkId: string, action: string) => {
               console.log('Remark action:', remarkId, action);
             }}
+            onEmphasizeRemark={handleEmphasizeRemark}
+            onRemarkClick={handleRemarkClick} // Add this line
           />
         </div>
         <div className="w-1/3 p-6 bg-black flex flex-col">
@@ -95,6 +108,8 @@ export default function DocumentWithMessenger({
             selectedMessageType={selectedMessageType}
             inputRef={inputRef}
             hoveredRemarkId={hoveredRemarkId}
+            emphasizedRemarkId={emphasizedRemarkId}
+            emphasizedSentenceId={emphasizedSentenceId}
           />
         </div>
       </div>

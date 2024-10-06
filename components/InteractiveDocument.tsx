@@ -553,6 +553,7 @@ const ParagraphComponent: React.FC<{
   cursorSpaceRefs: React.MutableRefObject<{ [key: string]: { resetContent: () => void } }>
   onRemarkMouseEnter: (sentenceId: string) => void
   onRemarkMouseLeave: () => void
+  onRemarkClick: (sentenceId: string) => void
 }> = ({ 
   paragraph, 
   updateParagraph, 
@@ -573,7 +574,8 @@ const ParagraphComponent: React.FC<{
   onCursorSpaceReset,
   cursorSpaceRefs,
   onRemarkMouseEnter,
-  onRemarkMouseLeave
+  onRemarkMouseLeave,
+  onRemarkClick
 }) => {
   const [lastClickedSentenceId, setLastClickedSentenceId] = useState<string | null>(null)
   const [lastClickTime, setLastClickTime] = useState<number>(0)
@@ -859,7 +861,7 @@ const ParagraphComponent: React.FC<{
                 <span 
                   className="text-white inline-block cursor-pointer" 
                   style={{ verticalAlign: 'sub', fontSize: '0.8em' }}
-                  onClick={() => handleRemarkClick(index)}
+                  onClick={() => onRemarkClick(sentence.id)}
                   onMouseEnter={() => onRemarkMouseEnter(sentence.id)}
                   onMouseLeave={onRemarkMouseLeave}
                 >
@@ -947,10 +949,12 @@ interface InteractiveDocumentProps {
   onNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => void
   onRemarkHover: (remarkId: string | null, remarkText: string | null) => void // Updated this prop
   onRemarkAction: (action: string, remarkId: string) => void // Updated this prop
+  onEmphasizeRemark: (remarkId: string | null, sentenceId: string | null) => void
+  onRemarkClick: (sentenceId: string) => void // Add this line
 }
 
 const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, ref) => {
-  const { onNewContent, onContentClick, onNewResponse, onRemarkHover, onRemarkAction } = props
+  const { onNewContent, onContentClick, onNewResponse, onRemarkHover, onRemarkAction, onEmphasizeRemark, onRemarkClick } = props
   const [title, setTitle] = useState('Untitled')
   const [paragraphs, setParagraphs] = useState<Paragraph[]>([
     {
@@ -1320,6 +1324,24 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     onRemarkHover(null, null)
   }, [onRemarkHover])
 
+  // Add this state to keep track of the currently emphasized remark for each sentence
+  const [emphasizedRemarkIndices, setEmphasizedRemarkIndices] = useState<{ [sentenceId: string]: number }>({})
+
+  // Add this function to handle the ⊕ click
+  const handleRemarkClick = useCallback((sentenceId: string) => {
+    const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId)
+    if (sentence && sentence.remarks.length > 0) {
+      const currentIndex = emphasizedRemarkIndices[sentenceId] || -1
+      const nextIndex = (currentIndex + 1) % sentence.remarks.length
+      setEmphasizedRemarkIndices(prev => ({ ...prev, [sentenceId]: nextIndex }))
+      const emphasizedRemark = sentence.remarks[nextIndex]
+      onEmphasizeRemark(emphasizedRemark.id, sentenceId)
+    } else {
+      onEmphasizeRemark(null, null)
+    }
+    onRemarkClick(sentenceId) // Add this line
+  }, [paragraphs, emphasizedRemarkIndices, onEmphasizeRemark, onRemarkClick])
+
   return (
     <DndProvider backend={HTML5Backend}>
       <div 
@@ -1374,6 +1396,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
               cursorSpaceRefs={cursorSpaceRefs}
               onRemarkMouseEnter={handleRemarkMouseEnter}
               onRemarkMouseLeave={handleRemarkMouseLeave}
+              onRemarkClick={handleRemarkClick}
             />
           ))}
         </div>
