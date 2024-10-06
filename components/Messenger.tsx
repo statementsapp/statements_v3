@@ -9,7 +9,7 @@ export interface Message {
 
 interface MessengerProps {
   messages: Message[]
-  onNewMessage: (text: string) => void
+  onNewMessage: (text: string, emphasizedMessageId: string | null) => void
   onMessageClick: (messageId: string, type: 'sentence' | 'remark') => void
   selectedMessageId: string | null
   selectedMessageType: 'sentence' | 'remark' | null
@@ -42,7 +42,7 @@ export function Messenger({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (inputText.trim()) {
-      onNewMessage(inputText.trim())
+      onNewMessage(inputText.trim(), emphasizedMessageId)
       setInputText('')
     }
   }
