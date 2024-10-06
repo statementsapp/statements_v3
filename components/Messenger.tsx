@@ -14,6 +14,7 @@ interface MessengerProps {
   selectedMessageId: string | null
   selectedMessageType: 'sentence' | 'remark' | null
   inputRef: React.RefObject<HTMLInputElement>
+  hoveredRemarkId: string | null
 }
 
 export function Messenger({
@@ -23,10 +24,19 @@ export function Messenger({
   selectedMessageId,
   selectedMessageType,
   inputRef,
+  hoveredRemarkId,
 }: MessengerProps) {
   const [inputText, setInputText] = useState('')
   const [emphasizedMessageId, setEmphasizedMessageId] = useState<string | null>(null)
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null)
+
+  // New useEffect to log new message IDs
+  useEffect(() => {
+    if (messages.length > 0) {
+      const latestMessage = messages[messages.length - 1];
+      console.log('New message received. ID:', latestMessage.id);
+    }
+  }, [messages]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,17 +70,20 @@ export function Messenger({
   return (
     <div className="flex flex-col h-full messenger-container">
       <div className="flex-grow overflow-auto pb-4">
-        {messages.map((message) => (
+        {messages.map((message, index) => (
           <div
-            key={message.id}
+            key={`${message.id}-${index}`}
             className={`p-2 mb-2 rounded cursor-pointer transition-all duration-200 ${
               message.sender === 'user' ? 'bg-gray-800 ml-auto' : 'bg-gray-700'
             } ${
               hoveredMessageId === message.id ? 'bg-opacity-80' : ''
             } ${
-              emphasizedMessageId === message.id ? 'border-2 border-white bg-opacity-70' : ''
+              emphasizedMessageId === message.id || hoveredRemarkId === message.id ? 'border-2 border-white bg-opacity-70' : ''
             }`}
-            style={{ maxWidth: '80%' }}
+            style={{
+              maxWidth: '80%',
+              boxShadow: hoveredRemarkId === message.id ? '0 0 0 2px rgba(255, 255, 255, 0.5)' : 'none',
+            }}
             onClick={() => handleMessageClick(message.id, message.type)}
             onMouseEnter={() => setHoveredMessageId(message.id)}
             onMouseLeave={() => setHoveredMessageId(null)}

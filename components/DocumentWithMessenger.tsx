@@ -16,26 +16,31 @@ export default function DocumentWithMessenger({
   const [selectedMessageType, setSelectedMessageType] = useState<'sentence' | 'remark' | null>(null)
   const documentRef = useRef<any>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [hoveredRemarkId, setHoveredRemarkId] = useState<string | null>(null);
 
   const handleNewContent = useCallback(
-    (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark') => {
+    (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string) => {
       const newMessage: Message = {
-        id: Date.now().toString(),
+        id,
         text,
-        sender: type === 'sentence' ? 'user' : 'ai', // 'sentence' on right, 'remark' on left
+        sender,
         type,
       }
       setMessages((prevMessages) => [...prevMessages, newMessage])
-      console.log('New message added:', newMessage) // Add this line for debugging
+      console.log('New message added:', newMessage)
     },
     []
   )
 
   const handleNewMessage = useCallback(
     (text: string) => {
-      handleNewContent(text, 'user', 'sentence')
+      if (documentRef.current) {
+        const newSentenceId = documentRef.current.addSentence(text);
+        // The message is now created inside the addSentence function,
+        // so we don't need to call handleNewContent here anymore.
+      }
     },
-    [handleNewContent]
+    []
   )
 
   const handleNewResponse = useCallback(
@@ -45,9 +50,9 @@ export default function DocumentWithMessenger({
       respondingToType: 'sentence' | 'remark'
     ) => {
       if (documentRef.current) {
-        documentRef.current.handleNewResponse(text, respondingToId, respondingToType)
+        const newRemarkId = documentRef.current.handleNewResponse(text, respondingToId, respondingToType);
+        handleNewContent(text, 'ai', 'remark', newRemarkId);
       }
-      handleNewContent(text, 'ai', respondingToType)
     },
     [handleNewContent]
   )
@@ -61,7 +66,7 @@ export default function DocumentWithMessenger({
   const handleRemarkHover = useCallback((remarkId: string | null, remarkText: string | null) => {
     console.log('Remark ID:', remarkId)
     console.log('Remark hovered:', remarkText)  
-    
+    setHoveredRemarkId(remarkId);
   }, [])
 
   return (
@@ -76,6 +81,9 @@ export default function DocumentWithMessenger({
             }}
             onRemarkHover={handleRemarkHover}
             onNewResponse={handleNewResponse}
+            onRemarkAction={(remarkId: string, action: string) => {
+              console.log('Remark action:', remarkId, action);
+            }}
           />
         </div>
         <div className="w-1/3 p-6 bg-black flex flex-col">
@@ -86,6 +94,7 @@ export default function DocumentWithMessenger({
             selectedMessageId={selectedMessageId}
             selectedMessageType={selectedMessageType}
             inputRef={inputRef}
+            hoveredRemarkId={hoveredRemarkId}
           />
         </div>
       </div>

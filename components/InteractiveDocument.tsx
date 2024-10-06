@@ -545,7 +545,7 @@ const ParagraphComponent: React.FC<{
   setFocusParagraphId: (id: string | null) => void
   moveSentence: (sentenceId: string, sourceParagraphId: string, targetParagraphId: string, targetIndex: number) => void
   newlyPlacedSentenceId: string | null
-  onNewContent: (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark') => void
+  onNewContent: (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string) => void
   handleCursorSpaceEnter: (text: string, paragraphId: string, index: number, isRemarkCursor: boolean) => void
   addRemark: (sentenceId: string) => void
   onCursorSpaceInput: (id: string, content: string) => void
@@ -672,7 +672,7 @@ const ParagraphComponent: React.FC<{
       s.id === sentenceId ? { ...s, text } : s
     )
     updateParagraph({ ...paragraph, sentences: newSentences })
-    onNewContent(text, 'user', 'sentence')
+    onNewContent(text, 'user', 'sentence', sentenceId)
     setEditingSentenceId(null)
     setFocusedCursorSpaceId(`${paragraph.id}-${index}`)
     
@@ -922,7 +922,7 @@ const ParagraphComponent: React.FC<{
         id={`separator-after-${paragraph.id}`}
         onEnter={(text) => {
           handleSeparatorEnter(text, 'after')
-          onNewContent(text, 'user', 'sentence')
+          onNewContent(text, 'user', 'sentence', Date.now().toString())
         }}
         onFocus={() => {
           setFocusedCursorSpaceId(`separator-after-${paragraph.id}`)
@@ -942,7 +942,7 @@ const ParagraphComponent: React.FC<{
 }
 
 interface InteractiveDocumentProps {
-  onNewContent: (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark') => void
+  onNewContent: (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string) => void
   onContentClick: (messageId: string, type: 'sentence' | 'remark') => void
   onNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => void
   onRemarkHover: (remarkId: string | null, remarkText: string | null) => void // Updated this prop
@@ -997,13 +997,14 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   useImperativeHandle(ref, () => ({
     handleNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => {
       // Implement the logic for handling new responses here
-      onNewContent(text, 'ai', respondingToType)
+      onNewContent(text, 'ai', respondingToType, respondingToId)
     }
   }))
 
   const addRemark = useCallback((sentenceId: string) => {
     const newRemarkText = generateRandomSentence()
     const newRemarkId = `remark-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    console.log('New remark ID created:', newRemarkId) // Add this log
     const pastelColor = `hsl(${Math.random() * 360}, 100%, 80%)`
     
     setParagraphs((prevParagraphs) => {
@@ -1020,12 +1021,13 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
         )
       }))
     })
-    onNewContent(newRemarkText, 'ai', 'remark')
+    onNewContent(newRemarkText, 'ai', 'remark', newRemarkId)
     return newRemarkId // Return the new remark ID
   }, [onNewContent])
 
   const addSentence = useCallback((text: string, paragraphId: string, index: number, isReplacingRemark: boolean = false) => {
     const newSentenceId = Date.now().toString()
+    console.log('New sentence ID created:', newSentenceId)
     setParagraphs((prevParagraphs) => {
       const newParagraphs = prevParagraphs.map(paragraph => {
         if (paragraph.id === paragraphId) {
@@ -1041,7 +1043,8 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
       return newParagraphs
     })
     
-    onNewContent(text, 'user', 'sentence')
+    // Create the message here
+    onNewContent(text, 'user', 'sentence', newSentenceId)
 
     // Focus on the next cursor space after the new sentence
     setTimeout(() => {
@@ -1051,7 +1054,9 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     // Set timeouts to add remarks after 2 seconds and 5 seconds
     setTimeout(() => addRemark(newSentenceId), 2000)
     setTimeout(() => addRemark(newSentenceId), 5000)
-  }, [onNewContent, setFocusedCursorSpaceId, addRemark])
+
+    return newSentenceId // Return the new sentence ID
+  }, [setFocusedCursorSpaceId, addRemark, onNewContent])
 
   const handleCursorSpaceEnter = useCallback((text: string, paragraphId: string, index: number, isRemarkCursor: boolean = false) => {
     addSentence(text, paragraphId, index, isRemarkCursor)
@@ -1104,9 +1109,12 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
 
   const addParagraph = (index: number, text: string): string => {
     const newParagraphId = Date.now().toString()
+    console.log('New paragraph ID created:', newParagraphId) // Add this log
+    const newSentenceId = `${newParagraphId}-1`
+    console.log('New sentence ID created for new paragraph:', newSentenceId) // Add this log
     const newParagraph: Paragraph = {
       id: newParagraphId,
-      sentences: [{ id: `${newParagraphId}-1`, text, remarks: [], remarkColor: undefined }],
+      sentences: [{ id: newSentenceId, text, remarks: [], remarkColor: undefined }],
     }
     setParagraphs((prevParagraphs) => {
       const newParagraphs = [...prevParagraphs]
@@ -1219,6 +1227,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   }, [paragraphs, focusedCursorSpaceId])
 
   const handleNewMessage = useCallback((text: string) => {
+    let newSentenceId: string;
     if (selectedSentenceId) {
       // Find the paragraph and sentence index of the selected sentence
       let targetParagraphIndex = -1
@@ -1234,7 +1243,10 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
       if (targetParagraphIndex !== -1) {
         // Create a new paragraph with the new sentence
         const newParagraphId = Date.now().toString()
-        const newSentence: Sentence = { id: `${newParagraphId}-1`, text, remarks: [], remarkColor: undefined }
+        console.log('New paragraph ID created in handleNewMessage:', newParagraphId)
+        newSentenceId = `${newParagraphId}-1`
+        console.log('New sentence ID created in handleNewMessage:', newSentenceId)
+        const newSentence: Sentence = { id: newSentenceId, text, remarks: [], remarkColor: undefined }
         const newParagraph: Paragraph = { id: newParagraphId, sentences: [newSentence] }
 
         // Insert the new paragraph after the one containing the selected sentence
@@ -1247,29 +1259,29 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
         // Reset the selected sentence
         setSelectedSentenceId(null)
 
-        // Call onNewContent
-        onNewContent(text, 'user', 'sentence')
-
         // Focus on the new cursor space after adding the sentence
         setTimeout(() => {
           setFocusedCursorSpaceId(`${newParagraphId}-0`)
         }, 0)
 
         // Set timeouts to add remarks after 2 seconds and 5 seconds
-        setTimeout(() => addRemark(`${newParagraphId}-1`), 2000)
-        setTimeout(() => addRemark(`${newParagraphId}-1`), 5000)
+        setTimeout(() => addRemark(newSentenceId), 2000)
+        setTimeout(() => addRemark(newSentenceId), 5000)
       } else {
         // If the selected sentence wasn't found, add the sentence to the end
-        addSentence(text, paragraphs[paragraphs.length - 1].id, paragraphs[paragraphs.length - 1].sentences.length)
+        newSentenceId = addSentence(text, paragraphs[paragraphs.length - 1].id, paragraphs[paragraphs.length - 1].sentences.length)
       }
     } else {
       // If no sentence was selected, add the sentence to the end
-      addSentence(text, paragraphs[paragraphs.length - 1].id, paragraphs[paragraphs.length - 1].sentences.length)
+      newSentenceId = addSentence(text, paragraphs[paragraphs.length - 1].id, paragraphs[paragraphs.length - 1].sentences.length)
     }
+
+    // Call onNewContent with the new sentence ID
+    onNewContent(text, 'user', 'sentence', newSentenceId)
 
     // Add the new message to the messages state
     setMessages(prevMessages => [...prevMessages, {
-      id: Date.now().toString(),
+      id: newSentenceId,
       text,
       sender: 'user',
       type: 'sentence'
@@ -1331,7 +1343,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
               const newParagraphId = addParagraph(0, text)
               setFocusedCursorSpaceId(`${newParagraphId}-0`)
               setFocusParagraphId(newParagraphId)
-              onNewContent(text, 'user', 'sentence')
+              onNewContent(text, 'user', 'sentence', Date.now().toString())
             }}
             onFocus={() => setFocusedCursorSpaceId(`separator-before-first`)}
             isFocused={focusedCursorSpaceId === `separator-before-first`}
