@@ -554,6 +554,7 @@ const ParagraphComponent: React.FC<{
   onRemarkMouseEnter: (sentenceId: string) => void
   onRemarkMouseLeave: () => void
   onRemarkClick: (sentenceId: string) => void
+  onSentenceClick: (sentenceId: string, paragraphId: string, index: number, e: React.MouseEvent) => void
 }> = ({ 
   paragraph, 
   updateParagraph, 
@@ -575,7 +576,8 @@ const ParagraphComponent: React.FC<{
   cursorSpaceRefs,
   onRemarkMouseEnter,
   onRemarkMouseLeave,
-  onRemarkClick
+  onRemarkClick,
+  onSentenceClick
 }) => {
   const [lastClickedSentenceId, setLastClickedSentenceId] = useState<string | null>(null)
   const [lastClickTime, setLastClickTime] = useState<number>(0)
@@ -637,28 +639,7 @@ const ParagraphComponent: React.FC<{
   }, [])
 
   const handleSentenceClick = (sentenceId: string, index: number, e: React.MouseEvent) => {
-    const currentTime = new Date().getTime()
-    const timeDiff = currentTime - lastClickTime
-    const cursorSpaceId = `${paragraph.id}-${index}`
-    
-    if (lastClickedSentenceId === sentenceId && timeDiff < 300) {
-      setEditingSentenceId(sentenceId)
-      setFocusedCursorSpaceId(null)
-    } else {
-      setEditingSentenceId(sentenceId)
-      setFocusedCursorSpaceId(cursorSpaceId)
-    }
-
-    setLastClickedSentenceId(sentenceId)
-    setLastClickTime(currentTime)
-    moveSentence(sentenceId, paragraph.id, paragraph.id, index)
-
-    // Clear all unfocused cursor spaces
-    Object.entries(cursorSpaceRefs.current).forEach(([id, ref]) => {
-      if (id !== cursorSpaceId) {
-        ref.resetContent()
-      }
-    })
+    onSentenceClick(sentenceId, paragraph.id, index, e)
   }
 
   const handleSentenceInput = (sentenceId: string, text: string) => {
@@ -951,10 +932,11 @@ interface InteractiveDocumentProps {
   onRemarkAction: (action: string, remarkId: string) => void // Updated this prop
   onEmphasizeRemark: (remarkId: string | null, sentenceId: string | null) => void
   onRemarkClick: (sentenceId: string) => void // Add this line
+  onDocumentClick: (clickType: 'document' | 'sentence', sentenceId?: string) => void;
 }
 
 const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, ref) => {
-  const { onNewContent, onContentClick, onNewResponse, onRemarkHover, onRemarkAction, onEmphasizeRemark, onRemarkClick } = props
+  const { onNewContent, onContentClick, onNewResponse, onRemarkHover, onRemarkAction, onEmphasizeRemark, onRemarkClick, onDocumentClick } = props
   const [title, setTitle] = useState('Untitled')
   const [paragraphs, setParagraphs] = useState<Paragraph[]>([
     {
@@ -998,6 +980,8 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   const [cursorSpaceContent, setCursorSpaceContent] = useState<{ [key: string]: string }>({})
   const cursorSpaceRefs = useRef<{ [key: string]: { resetContent: () => void } }>({})
   const [emphasizedRemarkIds, setEmphasizedRemarkIds] = useState<{ [sentenceId: string]: string }>({})
+  const [lastClickTime, setLastClickTime] = useState<number>(0)
+  const [lastClickedSentenceId, setLastClickedSentenceId] = useState<string | null>(null)
 
   useImperativeHandle(ref, () => ({
     handleNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => {
@@ -1221,6 +1205,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
         const lastCursorSpaceId = `${lastParagraph.id}-${lastSentenceIndex}`
         setFocusedCursorSpaceId(lastCursorSpaceId)
       }
+      onDocumentClick('document')
     }
 
     // Reset all cursor spaces except the focused one
@@ -1229,7 +1214,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
         ref.resetContent()
       }
     })
-  }, [paragraphs, focusedCursorSpaceId])
+  }, [paragraphs, focusedCursorSpaceId, onDocumentClick])
 
   const handleNewMessage = useCallback((text: string) => {
     let newSentenceId: string;
@@ -1353,6 +1338,34 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     // ... (other methods you want to expose)
   }))
 
+  const handleSentenceClick = useCallback((sentenceId: string, paragraphId: string, index: number, e: React.MouseEvent) => {
+    const currentTime = new Date().getTime()
+    const timeDiff = currentTime - lastClickTime
+    const cursorSpaceId = `${paragraphId}-${index}`
+    
+    if (lastClickedSentenceId === sentenceId && timeDiff < 300) {
+      setEditingSentenceId(sentenceId)
+      setFocusedCursorSpaceId(null)
+    } else {
+      setEditingSentenceId(sentenceId)
+      setFocusedCursorSpaceId(cursorSpaceId)
+    }
+
+    setLastClickedSentenceId(sentenceId)
+    setLastClickTime(currentTime)
+    moveSentence(sentenceId, paragraphId, paragraphId, index)
+
+    // Clear all unfocused cursor spaces
+    Object.entries(cursorSpaceRefs.current).forEach(([id, ref]) => {
+      if (id !== cursorSpaceId) {
+        ref.resetContent()
+      }
+    })
+
+    // Call onDocumentClick with 'sentence' type and sentenceId
+    onDocumentClick('sentence', sentenceId)
+  }, [lastClickTime, lastClickedSentenceId, setEditingSentenceId, setFocusedCursorSpaceId, moveSentence, cursorSpaceRefs, onDocumentClick])
+
   return (
     <DndProvider backend={HTML5Backend}>
       <div 
@@ -1408,6 +1421,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
               onRemarkMouseEnter={handleRemarkMouseEnter}
               onRemarkMouseLeave={handleRemarkMouseLeave}
               onRemarkClick={handleRemarkClick}
+              onSentenceClick={handleSentenceClick}
             />
           ))}
         </div>

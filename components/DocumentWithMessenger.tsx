@@ -20,6 +20,7 @@ export default function DocumentWithMessenger({
   const [emphasizedRemarkId, setEmphasizedRemarkId] = useState<string | null>(null)
   const [emphasizedSentenceId, setEmphasizedSentenceId] = useState<string | null>(null)
   const [emphasizedRemarkIds, setEmphasizedRemarkIds] = useState<{ [sentenceId: string]: string }>({})
+  const [emphasizedMessageId, setEmphasizedMessageId] = useState<string | null>(null)
 
   const handleNewContent = useCallback(
     (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string) => {
@@ -39,8 +40,6 @@ export default function DocumentWithMessenger({
     (text: string) => {
       if (documentRef.current) {
         const newSentenceId = documentRef.current.addSentence(text);
-        // The message is now created inside the addSentence function,
-        // so we don't need to call handleNewContent here anymore.
       }
     },
     []
@@ -60,25 +59,29 @@ export default function DocumentWithMessenger({
     [handleNewContent]
   )
 
+  const handleEmphasizeMessage = useCallback((messageId: string | null) => {
+    setEmphasizedMessageId(messageId)
+  }, [])
+
   const handleMessageClickInternal = useCallback((messageId: string, type: 'sentence' | 'remark') => {
     setSelectedMessageId(messageId)
     setSelectedMessageType(type)
+    handleEmphasizeMessage(messageId)
     onMessageClick(messageId, type)
-  }, [onMessageClick])
+  }, [onMessageClick, handleEmphasizeMessage])
 
   const handleRemarkHover = useCallback((remarkId: string | null, remarkText: string | null) => {
     console.log('Remark ID:', remarkId)
     console.log('Remark hovered:', remarkText)  
     setHoveredRemarkId(remarkId);
   
-    // Focus on the input when a remark is hovered
     if (inputRef.current) {
       inputRef.current.focus();
     }
   }, [])
 
   const handleEmphasizeRemark = useCallback((remarkId: string | null, sentenceId: string | null) => {
-    setEmphasizedRemarkId(remarkId)
+    setEmphasizedMessageId(remarkId)
     setEmphasizedSentenceId(sentenceId)
     if (sentenceId && remarkId) {
       setEmphasizedRemarkIds(prev => ({ ...prev, [sentenceId]: remarkId }))
@@ -91,13 +94,27 @@ export default function DocumentWithMessenger({
       console.log('Next remark ID:', nextRemarkId)
       if (nextRemarkId) {
         setHoveredRemarkId(nextRemarkId);
+        setEmphasizedMessageId(nextRemarkId);
         if (inputRef.current) {
           inputRef.current.focus();
         }
-        // setEmphasizedRemarkId(nextRemarkId)
-        // setEmphasizedSentenceId(sentenceId)
-        // setEmphasizedRemarkIds(prev => ({ ...prev, [sentenceId]: nextRemarkId }))
       }
+    }
+  }, [])
+
+  const handleDocumentClick = useCallback((clickType: 'document' | 'sentence', sentenceId?: string) => {
+    setEmphasizedMessageId(null)
+    setHoveredRemarkId(null)
+    
+    if (clickType === 'sentence' && sentenceId) {
+      // If a sentence was clicked, you might want to do something specific here
+      // For example, you could set the selectedMessageId to the clicked sentence
+      setSelectedMessageId(sentenceId)
+      setSelectedMessageType('sentence')
+    } else {
+      // If it's a general document click, clear the selection
+      setSelectedMessageId(null)
+      setSelectedMessageType(null)
     }
   }, [])
 
@@ -110,6 +127,7 @@ export default function DocumentWithMessenger({
             onNewContent={handleNewContent}
             onContentClick={(messageId: string, type: 'sentence' | 'remark') => {
               console.log('Content clicked:', messageId, type)
+              handleEmphasizeMessage(messageId)
             }}
             onRemarkHover={handleRemarkHover}
             onNewResponse={handleNewResponse}
@@ -118,6 +136,7 @@ export default function DocumentWithMessenger({
             }}
             onEmphasizeRemark={handleEmphasizeRemark}
             onRemarkClick={handleRemarkClick}
+            onDocumentClick={handleDocumentClick}
           />
         </div>
         <div className="w-1/3 p-6 bg-black flex flex-col">
@@ -129,8 +148,7 @@ export default function DocumentWithMessenger({
             selectedMessageType={selectedMessageType}
             inputRef={inputRef}
             hoveredRemarkId={hoveredRemarkId}
-            emphasizedRemarkId={emphasizedRemarkId}
-            emphasizedSentenceId={emphasizedSentenceId}
+            emphasizedMessageId={emphasizedMessageId}
           />
         </div>
       </div>

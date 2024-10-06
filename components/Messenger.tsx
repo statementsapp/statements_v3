@@ -1,4 +1,4 @@
-import React, { useState, forwardRef, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 
 export interface Message {
   id: string
@@ -15,6 +15,7 @@ interface MessengerProps {
   selectedMessageType: 'sentence' | 'remark' | null
   inputRef: React.RefObject<HTMLInputElement>
   hoveredRemarkId: string | null
+  emphasizedMessageId: string | null
 }
 
 export function Messenger({
@@ -25,9 +26,9 @@ export function Messenger({
   selectedMessageType,
   inputRef,
   hoveredRemarkId,
+  emphasizedMessageId,
 }: MessengerProps) {
   const [inputText, setInputText] = useState('')
-  const [emphasizedMessageId, setEmphasizedMessageId] = useState<string | null>(null)
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null)
 
   // New useEffect to log new message IDs
@@ -47,25 +48,17 @@ export function Messenger({
   }
 
   const handleMessageClick = useCallback((messageId: string, type: 'sentence' | 'remark') => {
-    setEmphasizedMessageId(messageId)
     onMessageClick(messageId, type)
     if (inputRef.current) {
       inputRef.current.focus()
     }
   }, [onMessageClick, inputRef])
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!(event.target as Element).closest('.messenger-container')) {
-        setEmphasizedMessageId(null)
-      }
-    }
+  const isMessageEmphasized = (messageId: string) => 
+    emphasizedMessageId === messageId || hoveredRemarkId === messageId
 
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [])
+  const shouldDimMessage = (messageId: string) =>
+    (emphasizedMessageId !== null || hoveredRemarkId !== null) && !isMessageEmphasized(messageId)
 
   return (
     <div className="flex flex-col h-full messenger-container">
@@ -78,7 +71,11 @@ export function Messenger({
             } ${
               hoveredMessageId === message.id ? 'bg-opacity-80' : ''
             } ${
-              emphasizedMessageId === message.id || hoveredRemarkId === message.id ? 'border-2 border-white bg-opacity-70' : ''
+              isMessageEmphasized(message.id)
+                ? 'border-2 border-white bg-opacity-100'
+                : shouldDimMessage(message.id)
+                ? 'opacity-50'
+                : ''
             }`}
             style={{
               maxWidth: '80%',
