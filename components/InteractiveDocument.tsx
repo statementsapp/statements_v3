@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperat
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { generateRandomSentence } from '../utils/sentenceGenerator' // You'll need to create this utility function
-import { Messenger, Message } from './Messenger' // Add this import
+import { Messenger, Message, MessengerProps } from './Messenger' // Update this import
 
 type Sentence = {
   id: string
@@ -546,6 +546,8 @@ const ParagraphComponent: React.FC<{
   onCursorSpaceInput: (id: string, content: string) => void
   onCursorSpaceReset: (id: string) => void
   cursorSpaceRefs: React.MutableRefObject<{ [key: string]: { resetContent: () => void } }>
+  onRemarkMouseEnter: (sentenceId: string) => void
+  onRemarkMouseLeave: () => void
 }> = ({ 
   paragraph, 
   updateParagraph, 
@@ -564,7 +566,9 @@ const ParagraphComponent: React.FC<{
   addRemark,
   onCursorSpaceInput,
   onCursorSpaceReset,
-  cursorSpaceRefs
+  cursorSpaceRefs,
+  onRemarkMouseEnter,
+  onRemarkMouseLeave
 }) => {
   const [lastClickedSentenceId, setLastClickedSentenceId] = useState<string | null>(null)
   const [lastClickTime, setLastClickTime] = useState<number>(0)
@@ -667,8 +671,8 @@ const ParagraphComponent: React.FC<{
     setEditingSentenceId(null)
     setFocusedCursorSpaceId(`${paragraph.id}-${index}`)
     
-    // Generate a remark for the edited sentence
-    // addRemark(sentenceId)
+    // Generate remarks for the edited sentence
+    setTimeout(() => addRemark(sentenceId), 2000)
     setTimeout(() => addRemark(sentenceId), 5000)
 
     // Focus on the new cursor space after adding the sentence
@@ -843,31 +847,21 @@ const ParagraphComponent: React.FC<{
               onMouseEnter={() => mouseHasMoved && setHoveredSentenceIndex(index)}
               onMouseLeave={() => mouseHasMoved && setHoveredSentenceIndex(null)}
             />
-            <span className="remark-container">
-              <CursorSpace
-                id={`${paragraph.id}-${index}-remark`}
-                onEnter={(text) => {
-                  handleCursorSpaceEnter(text, paragraph.id, index + 1, true)
-                }}
-                onFocus={() => setFocusedCursorSpaceId(`${paragraph.id}-${index}-remark`)}
-                isFocused={focusedCursorSpaceId === `${paragraph.id}-${index}-remark`}
-                isFirst={false}
-                isLast={false}
-                showSolidCursor={mouseHasMoved && expandedRemarkIndex === index && showRemarkSolidCursor}
-                onMouseEnter={() => mouseHasMoved && handleRemarkMouseEnter(index)}
-                onMouseLeave={handleRemarkMouseLeave}
-                onClick={() => handleRemarkClick(index)}
-                isDisabled={newlyPlacedSentenceId !== null}
-                remarks={sentence.remarks}
-                remarkColor={sentence.remarkColor}
-                isRemarkCursor={true}
-                isRemarkExpanded={expandedRemarkIndex === index}
-                isRemarkHovered={hoveredRemarkIndex === index}
-                isRemarkEditing={editingRemarkIndex === index}
-                onInput={(text) => onCursorSpaceInput(`${paragraph.id}-${index}-remark`, text)}
-                onReset={() => onCursorSpaceReset(`${paragraph.id}-${index}-remark`)}
-              />
-            </span>
+            {/* Add a space and ⊕ symbol if the sentence has remarks */}
+            {sentence.remarks.length > 0 && (
+              <>
+                {' '}
+                <span 
+                  className="text-white inline-block cursor-pointer" 
+                  style={{ verticalAlign: 'sub', fontSize: '0.8em' }}
+                  onClick={() => handleRemarkClick(index)}
+                  onMouseEnter={() => onRemarkMouseEnter(sentence.id)}
+                  onMouseLeave={onRemarkMouseLeave}
+                >
+                  ⊕
+                </span>
+              </>
+            )}
             <CursorSpace
               id={`${paragraph.id}-${index}`}
               onEnter={(text) => handleCursorSpaceEnter(text, paragraph.id, index + 1, false)}
@@ -877,7 +871,7 @@ const ParagraphComponent: React.FC<{
               isLast={index === paragraph.sentences.length - 1}
               showSolidCursor={
                 mouseHasMoved && (
-                  (hoveredSentenceIndex === index && expandedRemarkIndex !== index) || 
+                  (hoveredSentenceIndex === index) || 
                   (isEndingSpaceHovered && index === paragraph.sentences.length - 1)
                 )
               }
@@ -946,10 +940,12 @@ interface InteractiveDocumentProps {
   onNewContent: (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark') => void
   onContentClick: (messageId: string, type: 'sentence' | 'remark') => void
   onNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => void
+  onRemarkHover: (remarkText: string | null) => void // Add this prop
+  onRemarkAction: (action: string) => void // Add this new prop
 }
 
 const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, ref) => {
-  const { onNewContent, onContentClick, onNewResponse } = props
+  const { onNewContent, onContentClick, onNewResponse, onRemarkHover, onRemarkAction } = props
   const [title, setTitle] = useState('Untitled')
   const [paragraphs, setParagraphs] = useState<Paragraph[]>([
     {
@@ -1000,6 +996,23 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     }
   }))
 
+  const addRemark = useCallback((sentenceId: string) => {
+    const newRemark = generateRandomSentence()
+    const pastelColor = `hsl(${Math.random() * 360}, 100%, 80%)`
+    
+    setParagraphs((prevParagraphs) => {
+      return prevParagraphs.map(paragraph => ({
+        ...paragraph,
+        sentences: paragraph.sentences.map(sentence => 
+          sentence.id === sentenceId
+            ? { ...sentence, remarks: [...(sentence.remarks || []), newRemark], remarkColor: pastelColor }
+            : sentence
+        )
+      }))
+    })
+    onNewContent(newRemark, 'ai', 'remark')
+  }, [onNewContent])
+
   const addSentence = useCallback((text: string, paragraphId: string, index: number, isReplacingRemark: boolean = false) => {
     const newSentenceId = Date.now().toString()
     setParagraphs((prevParagraphs) => {
@@ -1024,26 +1037,10 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
       setFocusedCursorSpaceId(`${paragraphId}-${index}`)
     }, 0)
 
-    // Set a timeout to add a remark after 5 seconds
+    // Set timeouts to add remarks after 2 seconds and 5 seconds
+    setTimeout(() => addRemark(newSentenceId), 2000)
     setTimeout(() => addRemark(newSentenceId), 5000)
-  }, [onNewContent, setFocusedCursorSpaceId])
-
-  const addRemark = useCallback((sentenceId: string) => {
-    const newRemark = generateRandomSentence()
-    const pastelColor = `hsl(${Math.random() * 360}, 100%, 80%)`
-    
-    setParagraphs((prevParagraphs) => {
-      return prevParagraphs.map(paragraph => ({
-        ...paragraph,
-        sentences: paragraph.sentences.map(sentence => 
-          sentence.id === sentenceId
-            ? { ...sentence, remarks: [...(sentence.remarks || []), newRemark], remarkColor: pastelColor }
-            : sentence
-        )
-      }))
-    })
-    onNewContent(newRemark, 'ai', 'remark')
-  }, [onNewContent])
+  }, [onNewContent, setFocusedCursorSpaceId, addRemark])
 
   const handleCursorSpaceEnter = useCallback((text: string, paragraphId: string, index: number, isRemarkCursor: boolean = false) => {
     addSentence(text, paragraphId, index, isRemarkCursor)
@@ -1247,7 +1244,8 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
           setFocusedCursorSpaceId(`${newParagraphId}-0`)
         }, 0)
 
-        // Set a timeout to add a remark after 5 seconds
+        // Set timeouts to add remarks after 2 seconds and 5 seconds
+        setTimeout(() => addRemark(`${newParagraphId}-1`), 2000)
         setTimeout(() => addRemark(`${newParagraphId}-1`), 5000)
       } else {
         // If the selected sentence wasn't found, add the sentence to the end
@@ -1286,6 +1284,24 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
       return newContent
     })
   }, [])
+
+  const handleRemarkMouseEnter = useCallback((sentenceId: string) => {
+    const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId)
+    if (sentence && sentence.remarks.length > 0) {
+      const mostRecentRemark = sentence.remarks[sentence.remarks.length - 1]
+      onRemarkHover(mostRecentRemark)
+      
+      // Dummy function that fires if the if statement is triggered
+      const dummyRemarkAction = () => {
+        onRemarkAction('hover_action')
+      }
+      dummyRemarkAction()
+    }
+  }, [paragraphs, onRemarkHover, onRemarkAction])
+
+  const handleRemarkMouseLeave = useCallback(() => {
+    onRemarkHover(null)
+  }, [onRemarkHover])
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -1339,6 +1355,8 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
               onCursorSpaceInput={handleCursorSpaceInput}
               onCursorSpaceReset={handleCursorSpaceReset}
               cursorSpaceRefs={cursorSpaceRefs}
+              onRemarkMouseEnter={handleRemarkMouseEnter}
+              onRemarkMouseLeave={handleRemarkMouseLeave}
             />
           ))}
         </div>
@@ -1350,6 +1368,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
         selectedMessageId={selectedSentenceId}
         selectedMessageType={selectedSentenceId ? 'sentence' : null}
         inputRef={inputRef}
+        onRemarkAction={onRemarkAction} // Pass the onRemarkAction prop to Messenger
       />
     </DndProvider>
   )

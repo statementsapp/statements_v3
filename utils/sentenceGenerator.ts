@@ -10,6 +10,16 @@ export function generateRandomSentence(): string {
     "This seems to contradict what was said earlier.",
     "Can you provide an example?",
     "This is a crucial observation.",
+    "What evidence supports this claim?",
+    "Have you considered alternative viewpoints?",
+    "This aligns with my own experiences.",
+    "I wonder about the broader implications of this.",
+    "How does this fit into the larger context?",
+    "This challenges my preconceptions.",
+    "Are there any potential drawbacks to this approach?",
+    "I find this particularly insightful.",
+    "How might this apply in different scenarios?",
+    "This raises some interesting questions.",
   ];
   return sentences[Math.floor(Math.random() * sentences.length)];
 }
