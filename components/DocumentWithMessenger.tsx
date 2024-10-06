@@ -19,6 +19,7 @@ export default function DocumentWithMessenger({
   const [hoveredRemarkId, setHoveredRemarkId] = useState<string | null>(null);
   const [emphasizedRemarkId, setEmphasizedRemarkId] = useState<string | null>(null)
   const [emphasizedSentenceId, setEmphasizedSentenceId] = useState<string | null>(null)
+  const [emphasizedRemarkIds, setEmphasizedRemarkIds] = useState<{ [sentenceId: string]: string }>({})
 
   const handleNewContent = useCallback(
     (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string) => {
@@ -69,15 +70,35 @@ export default function DocumentWithMessenger({
     console.log('Remark ID:', remarkId)
     console.log('Remark hovered:', remarkText)  
     setHoveredRemarkId(remarkId);
+  
+    // Focus on the input when a remark is hovered
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
   }, [])
 
   const handleEmphasizeRemark = useCallback((remarkId: string | null, sentenceId: string | null) => {
     setEmphasizedRemarkId(remarkId)
     setEmphasizedSentenceId(sentenceId)
+    if (sentenceId && remarkId) {
+      setEmphasizedRemarkIds(prev => ({ ...prev, [sentenceId]: remarkId }))
+    }
   }, [])
 
   const handleRemarkClick = useCallback((sentenceId: string) => {
-    console.log('⊕ clicked for sentence:', sentenceId)
+    if (documentRef.current) {
+      const nextRemarkId = documentRef.current.cycleEmphasizedRemark(sentenceId)
+      console.log('Next remark ID:', nextRemarkId)
+      if (nextRemarkId) {
+        setHoveredRemarkId(nextRemarkId);
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+        // setEmphasizedRemarkId(nextRemarkId)
+        // setEmphasizedSentenceId(sentenceId)
+        // setEmphasizedRemarkIds(prev => ({ ...prev, [sentenceId]: nextRemarkId }))
+      }
+    }
   }, [])
 
   return (
@@ -96,7 +117,7 @@ export default function DocumentWithMessenger({
               console.log('Remark action:', remarkId, action);
             }}
             onEmphasizeRemark={handleEmphasizeRemark}
-            onRemarkClick={handleRemarkClick} // Add this line
+            onRemarkClick={handleRemarkClick}
           />
         </div>
         <div className="w-1/3 p-6 bg-black flex flex-col">

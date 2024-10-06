@@ -997,6 +997,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   const inputRef = useRef<HTMLInputElement>(null) // Add this ref for the input
   const [cursorSpaceContent, setCursorSpaceContent] = useState<{ [key: string]: string }>({})
   const cursorSpaceRefs = useRef<{ [key: string]: { resetContent: () => void } }>({})
+  const [emphasizedRemarkIds, setEmphasizedRemarkIds] = useState<{ [sentenceId: string]: string }>({})
 
   useImperativeHandle(ref, () => ({
     handleNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => {
@@ -1324,23 +1325,33 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     onRemarkHover(null, null)
   }, [onRemarkHover])
 
-  // Add this state to keep track of the currently emphasized remark for each sentence
-  const [emphasizedRemarkIndices, setEmphasizedRemarkIndices] = useState<{ [sentenceId: string]: number }>({})
-
-  // Add this function to handle the ⊕ click
-  const handleRemarkClick = useCallback((sentenceId: string) => {
+  const cycleEmphasizedRemark = useCallback((sentenceId: string) => {
     const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId)
     if (sentence && sentence.remarks.length > 0) {
-      const currentIndex = emphasizedRemarkIndices[sentenceId] || -1
+      const currentRemarkId = emphasizedRemarkIds[sentenceId]
+      const currentIndex = sentence.remarks.findIndex(r => r.id === currentRemarkId)
       const nextIndex = (currentIndex + 1) % sentence.remarks.length
-      setEmphasizedRemarkIndices(prev => ({ ...prev, [sentenceId]: nextIndex }))
-      const emphasizedRemark = sentence.remarks[nextIndex]
-      onEmphasizeRemark(emphasizedRemark.id, sentenceId)
-    } else {
-      onEmphasizeRemark(null, null)
+      const nextRemarkId = sentence.remarks[nextIndex].id
+
+      setEmphasizedRemarkIds(prev => ({ ...prev, [sentenceId]: nextRemarkId }))
+      return nextRemarkId
     }
-    onRemarkClick(sentenceId) // Add this line
-  }, [paragraphs, emphasizedRemarkIndices, onEmphasizeRemark, onRemarkClick])
+    return null
+  }, [paragraphs, emphasizedRemarkIds])
+
+  const handleRemarkClick = useCallback((sentenceId: string) => {
+    const nextRemarkId = cycleEmphasizedRemark(sentenceId)
+    if (nextRemarkId) {
+      onEmphasizeRemark(nextRemarkId, sentenceId)
+      onRemarkClick(sentenceId)
+    }
+  }, [cycleEmphasizedRemark, onEmphasizeRemark, onRemarkClick])
+
+  // Expose the cycleEmphasizedRemark method through the ref
+  useImperativeHandle(ref, () => ({
+    cycleEmphasizedRemark,
+    // ... (other methods you want to expose)
+  }))
 
   return (
     <DndProvider backend={HTML5Backend}>
