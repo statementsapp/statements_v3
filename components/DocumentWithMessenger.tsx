@@ -21,6 +21,7 @@ export default function DocumentWithMessenger({
   const [emphasizedSentenceId, setEmphasizedSentenceId] = useState<string | null>(null)
   const [emphasizedRemarkIds, setEmphasizedRemarkIds] = useState<{ [sentenceId: string]: string }>({})
   const [emphasizedMessageId, setEmphasizedMessageId] = useState<string | null>(null)
+  const [emphasizedSentenceType, setEmphasizedSentenceType] = useState<'sentence' | 'remark' | null>(null)
 
   const handleNewContent = useCallback(
     (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string, sentenceId?: string) => {
@@ -29,7 +30,7 @@ export default function DocumentWithMessenger({
         text,
         sender,
         type,
-        sentenceId: type === 'remark' ? sentenceId : undefined,
+        sentenceId: type === 'remark' ? sentenceId : id,
       }
       setMessages((prevMessages) => [...prevMessages, newMessage])
       console.log('New message added:', newMessage)
@@ -38,12 +39,14 @@ export default function DocumentWithMessenger({
   )
 
   const handleNewMessage = useCallback(
-    (text: string, emphasizedSentenceId: string | null, emphasizedMessageId: string | null) => {
+    (text: string, emphasizedSentenceId: string | null, emphasizedMessageId: string | null, emphasizedType: 'sentence' | 'remark' | null) => {
       console.log('handleNewMessage called with:', {
         text,
         emphasizedSentenceId,
-        emphasizedMessageId
+        emphasizedMessageId,
+        emphasizedType
       })
+      // Add your logic here to handle the new message
     },
     []
   )
@@ -64,7 +67,17 @@ export default function DocumentWithMessenger({
 
   const handleEmphasizeMessage = useCallback((messageId: string | null) => {
     setEmphasizedMessageId(messageId)
-  }, [])
+    if (messageId) {
+      const emphasizedMessage = messages.find(message => message.id === messageId)
+      if (emphasizedMessage) {
+        setEmphasizedSentenceId(emphasizedMessage.sentenceId || null)
+        setEmphasizedSentenceType(emphasizedMessage.type)
+      }
+    } else {
+      setEmphasizedSentenceId(null)
+      setEmphasizedSentenceType(null)
+    }
+  }, [messages])
 
   const handleMessageClickInternal = useCallback((messageId: string, type: 'sentence' | 'remark') => {
     setSelectedMessageId(messageId)
@@ -140,19 +153,22 @@ export default function DocumentWithMessenger({
             onEmphasizeRemark={handleEmphasizeRemark}
             onRemarkClick={handleRemarkClick}
             onDocumentClick={handleDocumentClick}
+            emphasizedSentenceId={emphasizedSentenceId}
+            emphasizedSentenceType={emphasizedSentenceType}
           />
         </div>
         <div className="w-1/3 p-6 bg-black flex flex-col">
           <Messenger
             messages={messages}
-            onNewMessage={handleNewMessage}
+            onNewMessage={(text) => handleNewMessage(text, emphasizedSentenceId, emphasizedMessageId, emphasizedSentenceType)}
             onMessageClick={handleMessageClickInternal}
             selectedMessageId={selectedMessageId}
             selectedMessageType={selectedMessageType}
             inputRef={inputRef}
             hoveredRemarkId={hoveredRemarkId}
             emphasizedMessageId={emphasizedMessageId}
-            emphasizedSentenceId={emphasizedSentenceId} // Add this prop
+            emphasizedSentenceId={emphasizedSentenceId}
+            emphasizedSentenceType={emphasizedSentenceType}
           />
         </div>
       </div>

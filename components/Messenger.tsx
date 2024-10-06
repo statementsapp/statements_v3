@@ -10,7 +10,7 @@ export type Message = {
 
 interface MessengerProps {
   messages: Message[]
-  onNewMessage: (text: string, emphasizedSentenceId: string | null, emphasizedMessageId: string | null) => void
+  onNewMessage: (text: string, emphasizedSentenceId: string | null, emphasizedMessageId: string | null, emphasizedType: 'sentence' | 'remark' | null) => void
   onMessageClick: (messageId: string, type: 'sentence' | 'remark') => void
   selectedMessageId: string | null
   selectedMessageType: 'sentence' | 'remark' | null
@@ -18,6 +18,7 @@ interface MessengerProps {
   hoveredRemarkId: string | null
   emphasizedMessageId: string | null
   emphasizedSentenceId: string | null // Add this prop
+  emphasizedSentenceType: 'sentence' | 'remark' | null
 }
 
 export function Messenger({
@@ -30,6 +31,7 @@ export function Messenger({
   hoveredRemarkId,
   emphasizedMessageId,
   emphasizedSentenceId, // Add this prop
+  emphasizedSentenceType,
 }: MessengerProps) {
   const [inputText, setInputText] = useState('')
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null)
@@ -47,7 +49,8 @@ export function Messenger({
     if (inputText.trim()) {
       console.log("emphasized message Id: ", emphasizedMessageId)
       console.log("emphasized sentence id: ", emphasizedSentenceId)
-      onNewMessage(inputText.trim(), emphasizedSentenceId, emphasizedMessageId)
+      console.log("emphasized sentence type: ", emphasizedSentenceType)
+      onNewMessage(inputText.trim(), emphasizedSentenceId, emphasizedMessageId, emphasizedSentenceType)
       setInputText('')
     }
   }

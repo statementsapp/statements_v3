@@ -1225,6 +1225,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   }, [paragraphs, focusedCursorSpaceId, onDocumentClick])
 
   const handleNewMessage = useCallback((text: string) => {
+    console.log("handleNewMessage called from interactive document")
     let newSentenceId: string;
     if (selectedSentenceId) {
       // Find the paragraph and sentence index of the selected sentence
