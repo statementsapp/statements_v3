@@ -58,6 +58,12 @@ export default function DocumentWithMessenger({
     onMessageClick(messageId, type)
   }, [onMessageClick])
 
+  const handleRemarkHover = useCallback((remarkId: string | null, remarkText: string | null) => {
+    console.log('Remark ID:', remarkId)
+    console.log('Remark hovered:', remarkText)  
+    
+  }, [])
+
   return (
     <div className="flex justify-center min-h-screen bg-black text-white">
       <div className="flex w-full max-w-7xl mx-auto">
@@ -68,6 +74,7 @@ export default function DocumentWithMessenger({
             onContentClick={(messageId: string, type: 'sentence' | 'remark') => {
               console.log('Content clicked:', messageId, type)
             }}
+            onRemarkHover={handleRemarkHover}
             onNewResponse={handleNewResponse}
           />
         </div>

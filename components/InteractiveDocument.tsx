@@ -6,10 +6,15 @@ import { HTML5Backend } from 'react-dnd-html5-backend'
 import { generateRandomSentence } from '../utils/sentenceGenerator' // You'll need to create this utility function
 import { Messenger, Message, MessengerProps } from './Messenger' // Update this import
 
+type Remark = {
+  id: string;
+  text: string;
+}
+
 type Sentence = {
   id: string
   text: string
-  remarks: string[]
+  remarks: Remark[]
   remarkColor?: string
 }
 
@@ -940,8 +945,8 @@ interface InteractiveDocumentProps {
   onNewContent: (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark') => void
   onContentClick: (messageId: string, type: 'sentence' | 'remark') => void
   onNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => void
-  onRemarkHover: (remarkText: string | null) => void // Add this prop
-  onRemarkAction: (action: string) => void // Add this new prop
+  onRemarkHover: (remarkId: string | null, remarkText: string | null) => void // Updated this prop
+  onRemarkAction: (action: string, remarkId: string) => void // Updated this prop
 }
 
 const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, ref) => {
@@ -997,7 +1002,8 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   }))
 
   const addRemark = useCallback((sentenceId: string) => {
-    const newRemark = generateRandomSentence()
+    const newRemarkText = generateRandomSentence()
+    const newRemarkId = `remark-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     const pastelColor = `hsl(${Math.random() * 360}, 100%, 80%)`
     
     setParagraphs((prevParagraphs) => {
@@ -1005,12 +1011,17 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
         ...paragraph,
         sentences: paragraph.sentences.map(sentence => 
           sentence.id === sentenceId
-            ? { ...sentence, remarks: [...(sentence.remarks || []), newRemark], remarkColor: pastelColor }
+            ? { 
+                ...sentence, 
+                remarks: [...(sentence.remarks || []), { id: newRemarkId, text: newRemarkText }],
+                remarkColor: sentence.remarkColor || pastelColor
+              }
             : sentence
         )
       }))
     })
-    onNewContent(newRemark, 'ai', 'remark')
+    onNewContent(newRemarkText, 'ai', 'remark')
+    return newRemarkId // Return the new remark ID
   }, [onNewContent])
 
   const addSentence = useCallback((text: string, paragraphId: string, index: number, isReplacingRemark: boolean = false) => {
@@ -1289,18 +1300,12 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId)
     if (sentence && sentence.remarks.length > 0) {
       const mostRecentRemark = sentence.remarks[sentence.remarks.length - 1]
-      onRemarkHover(mostRecentRemark)
-      
-      // Dummy function that fires if the if statement is triggered
-      const dummyRemarkAction = () => {
-        onRemarkAction('hover_action')
-      }
-      dummyRemarkAction()
+      onRemarkHover(mostRecentRemark.id, mostRecentRemark.text)
     }
-  }, [paragraphs, onRemarkHover, onRemarkAction])
+  }, [paragraphs, onRemarkHover])
 
   const handleRemarkMouseLeave = useCallback(() => {
-    onRemarkHover(null)
+    onRemarkHover(null, null)
   }, [onRemarkHover])
 
   return (
@@ -1368,7 +1373,6 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
         selectedMessageId={selectedSentenceId}
         selectedMessageType={selectedSentenceId ? 'sentence' : null}
         inputRef={inputRef}
-        onRemarkAction={onRemarkAction} // Pass the onRemarkAction prop to Messenger
       />
     </DndProvider>
   )
