@@ -45,10 +45,41 @@ export default function DocumentWithMessenger({
         emphasizedSentenceId,
         emphasizedMessageId,
         emphasizedType
-      })
-      // Add your logic here to handle the new message
+      });
+
+      if (documentRef.current) {
+        let newSentenceId: string | null = null;
+
+        if (emphasizedType === 'sentence' && emphasizedSentenceId) {
+          // Add the new sentence directly after the emphasized sentence
+          newSentenceId = documentRef.current.addSentenceAfter(emphasizedSentenceId, text);
+        } else if (emphasizedType === 'remark' && emphasizedSentenceId && emphasizedMessageId) {
+          // Add a new paragraph after the emphasized sentence and mark the remark as rejoined
+          console.log('Calling addParagraphAfterSentence with:', emphasizedSentenceId, text, emphasizedMessageId);
+          newSentenceId = documentRef.current.addParagraphAfterSentence(emphasizedSentenceId, text, emphasizedMessageId);
+        } else {
+          // Add a new paragraph at the end if no sentence is emphasized
+          console.log('Calling addParagraphAfterSentence with:', emphasizedSentenceId, text);
+          newSentenceId = documentRef.current.addParagraphAfterSentence(emphasizedSentenceId, text);
+        }
+
+        if (newSentenceId) {
+          // Add the new sentence to the messages state
+          handleNewContent(text, 'user', 'sentence', newSentenceId);
+          
+          // Update the emphasized sentence
+          setEmphasizedSentenceId(newSentenceId);
+          setEmphasizedSentenceType('sentence');
+          
+          console.log('New sentence/paragraph added:', newSentenceId);
+        } else {
+          console.error('Failed to add new sentence/paragraph');
+        }
+      } else {
+        console.error('documentRef is not available');
+      }
     },
-    []
+    [handleNewContent, setEmphasizedSentenceId, setEmphasizedSentenceType]
   )
 
   const handleNewResponse = useCallback(

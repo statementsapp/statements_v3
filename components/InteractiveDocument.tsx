@@ -9,12 +9,13 @@ import { Messenger, Message, MessengerProps } from './Messenger' // Update this 
 type Remark = {
   id: string;
   text: string;
-  sentenceId: string; // Add this line
+  sentenceId: string;
+  rejoined: boolean; // Add this line
 }
 
 type Sentence = {
   id: string
-  sentenceId: string // Add this line
+  sentenceId: string
   text: string
   remarks: Remark[]
   remarkColor?: string
@@ -232,7 +233,7 @@ const CursorSpace = React.forwardRef<
           suppressContentEditableWarning
           className={`inline-block min-w-[1ch] outline-none ${
             isFocused ? 'bg-transparent' : ''
-          } ${isSeparator ? 'w-full' : ''}`}
+          } ${isSeparator ? 'w-full' : ''} pl-[0.3em]`} // Added left padding here
           onInput={handleInput}
           onKeyDown={handleKeyDown}
           onFocus={onFocus}
@@ -837,8 +838,8 @@ const ParagraphComponent: React.FC<{
               onMouseEnter={() => mouseHasMoved && setHoveredSentenceIndex(index)}
               onMouseLeave={() => mouseHasMoved && setHoveredSentenceIndex(null)}
             />
-            {/* Add a space and ⊕ symbol if the sentence has remarks */}
-            {sentence.remarks.length > 0 && (
+            {/* Update this part to check if there are any unrejoined remarks */}
+            {sentence.remarks.length > 0 && sentence.remarks.some(remark => !remark.rejoined) && (
               <>
                 {' '}
                 <span 
@@ -935,6 +936,8 @@ interface InteractiveDocumentProps {
   onEmphasizeRemark: (remarkId: string | null, sentenceId: string | null) => void
   onRemarkClick: (sentenceId: string) => void // Add this line
   onDocumentClick: (clickType: 'document' | 'sentence', sentenceId?: string) => void;
+  emphasizedSentenceId: string | null;
+  emphasizedSentenceType: 'sentence' | 'remark' | null;
 }
 
 const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, ref) => {
@@ -1005,7 +1008,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
           sentence.id === sentenceId
             ? { 
                 ...sentence, 
-                remarks: [...(sentence.remarks || []), { id: newRemarkId, text: newRemarkText, sentenceId }],
+                remarks: [...(sentence.remarks || []), { id: newRemarkId, text: newRemarkText, sentenceId, rejoined: false }],
                 remarkColor: sentence.remarkColor || pastelColor
               }
             : sentence
@@ -1105,21 +1108,21 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   }
 
   const addParagraph = (index: number, text: string): string => {
-    const newParagraphId = Date.now().toString()
-    console.log('New paragraph ID created:', newParagraphId) // Add this log
-    const newSentenceId = `${newParagraphId}-1`
-    console.log('New sentence ID created for new paragraph:', newSentenceId) // Add this log
+    const newParagraphId = Date.now().toString();
+    console.log('New paragraph ID created:', newParagraphId);
+    const newSentenceId = `${newParagraphId}-1`;
+    console.log('New sentence ID created for new paragraph:', newSentenceId);
     const newParagraph: Paragraph = {
       id: newParagraphId,
       sentences: [{ id: newSentenceId, sentenceId: newSentenceId, text, remarks: [], remarkColor: undefined }],
-    }
+    };
     setParagraphs((prevParagraphs) => {
-      const newParagraphs = [...prevParagraphs]
-      newParagraphs.splice(index, 0, newParagraph)
-      return newParagraphs
-    })
-    return newParagraphId  // Explicitly return the new paragraph ID
-  }
+      const newParagraphs = [...prevParagraphs];
+      newParagraphs.splice(index, 0, newParagraph);
+      return newParagraphs;
+    });
+    return newSentenceId; // Return the new sentence ID instead of paragraph ID
+  };
 
   useEffect(() => {
     if (focusParagraphId) {
@@ -1374,6 +1377,101 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     // Call onDocumentClick with 'sentence' type and sentenceId
     onDocumentClick('sentence', sentenceId)
   }, [lastClickTime, lastClickedSentenceId, setEditingSentenceId, setFocusedCursorSpaceId, moveSentence, cursorSpaceRefs, onDocumentClick])
+
+  const addSentenceAfter = useCallback((afterSentenceId: string, newSentenceText: string) => {
+    console.log("Adding sentence after")
+    setParagraphs((prevParagraphs) => {
+      return prevParagraphs.map((paragraph) => {
+        const afterIndex = paragraph.sentences.findIndex((s) => s.id === afterSentenceId);
+        if (afterIndex === -1) return paragraph;
+
+        const newSentenceId = Date.now().toString();
+        const newSentence = { id: newSentenceId, sentenceId: newSentenceId, text: newSentenceText, remarks: [], remarkColor: undefined };
+        
+        const updatedSentences = [
+          ...paragraph.sentences.slice(0, afterIndex + 1),
+          newSentence,
+          ...paragraph.sentences.slice(afterIndex + 1)
+        ];
+
+        return { ...paragraph, sentences: updatedSentences };
+      });
+    });
+
+    return newSentenceId;
+  }, []);
+
+  // Add this new method to the InteractiveDocument component
+  const addSentenceToEnd = useCallback((text: string) => {
+    const lastParagraph = paragraphs[paragraphs.length - 1];
+    const newSentenceId = addSentence(text, lastParagraph.id, lastParagraph.sentences.length);
+    return newSentenceId;
+  }, [paragraphs, addSentence]);
+
+  const addParagraphAfterSentence = useCallback((sentenceId: string | null, text: string, rejoinedRemarkId?: string) => {
+    console.log("Adding paragraph after sentence. sentenceId:", sentenceId, "text:", text, "rejoinedRemarkId:", rejoinedRemarkId);
+    let newSentenceId: string;
+    
+    if (!sentenceId) {
+      console.log("No sentence is emphasized");
+      // If no sentence is emphasized, add the paragraph at the end
+      newSentenceId = addParagraph(paragraphs.length, text);
+    } else {
+      // Find the paragraph containing the sentence
+      const paragraphIndex = paragraphs.findIndex(p => p.sentences.some(s => s.id === sentenceId));
+      console.log("Found sentence in paragraph at index:", paragraphIndex);
+      if (paragraphIndex === -1) {
+        console.error('Sentence not found:', sentenceId);
+        return null;
+      }
+
+      const newParagraphId = Date.now().toString();
+      newSentenceId = `${newParagraphId}-1`;
+      const newParagraph: Paragraph = {
+        id: newParagraphId,
+        sentences: [{ id: newSentenceId, sentenceId: newSentenceId, text, remarks: [], remarkColor: undefined }],
+      };
+
+      setParagraphs(prevParagraphs => {
+        const newParagraphs = [...prevParagraphs];
+        // Insert the new paragraph right after the paragraph containing the sentence
+        newParagraphs.splice(paragraphIndex + 1, 0, newParagraph);
+
+        // Mark the remark as rejoined if rejoinedRemarkId is provided
+        if (rejoinedRemarkId) {
+          const sentence = newParagraphs[paragraphIndex].sentences.find(s => s.id === sentenceId);
+          if (sentence) {
+            const remarkIndex = sentence.remarks.findIndex(r => r.id === rejoinedRemarkId);
+            if (remarkIndex !== -1) {
+              sentence.remarks[remarkIndex] = { ...sentence.remarks[remarkIndex], rejoined: true };
+              console.log('Remark newly rejoined:', sentence.remarks[remarkIndex]);
+            }
+          }
+        }
+
+        return newParagraphs;
+      });
+    }
+
+    console.log('About to return newSentenceId:', newSentenceId);
+    
+    // Add remarks after 2 seconds and 5 seconds
+    setTimeout(() => addRemark(newSentenceId), 2000);
+    setTimeout(() => addRemark(newSentenceId), 5000);
+
+    return newSentenceId;
+  }, [paragraphs, addParagraph, addRemark]);
+
+  // Update the useImperativeHandle hook
+  useImperativeHandle(ref, () => ({
+    handleNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => {
+      onNewContent(text, 'ai', respondingToType, respondingToId);
+    },
+    cycleEmphasizedRemark,
+    addSentenceAfter,
+    addSentenceToEnd, // Add this new method
+    addParagraphAfterSentence, // Add this new method
+  }));
 
   return (
     <DndProvider backend={HTML5Backend}>
