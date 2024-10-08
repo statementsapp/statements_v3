@@ -48,38 +48,52 @@ export default function DocumentWithMessenger({
       });
 
       if (documentRef.current) {
-        let newSentenceId: string | null = null;
+        const newSentenceId = `sentence-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
         if (emphasizedType === 'sentence' && emphasizedSentenceId) {
           // Add the new sentence directly after the emphasized sentence
-          newSentenceId = documentRef.current.addSentenceAfter(emphasizedSentenceId, text);
+          console.log("addSentenceAfter with:", emphasizedSentenceId, text, newSentenceId)
+          documentRef.current.addSentenceAfter(emphasizedSentenceId, text, newSentenceId);
         } else if (emphasizedType === 'remark' && emphasizedSentenceId && emphasizedMessageId) {
           // Add a new paragraph after the emphasized sentence and mark the remark as rejoined
-          console.log('Calling addParagraphAfterSentence with:', emphasizedSentenceId, text, emphasizedMessageId);
-          newSentenceId = documentRef.current.addParagraphAfterSentence(emphasizedSentenceId, text, emphasizedMessageId);
+          console.log('addParagraphAfterSentence with:', emphasizedSentenceId, text, emphasizedMessageId, newSentenceId);
+          documentRef.current.addParagraphAfterSentence(emphasizedSentenceId, text, emphasizedMessageId, newSentenceId);
         } else {
           // Add a new paragraph at the end if no sentence is emphasized
-          console.log('Calling addParagraphAfterSentence with:', emphasizedSentenceId, text);
-          newSentenceId = documentRef.current.addParagraphAfterSentence(emphasizedSentenceId, text);
+          console.log('ELSE addParagraphAfterSentence with:', emphasizedSentenceId, text, newSentenceId);
+          documentRef.current.addParagraphAfterSentence(emphasizedSentenceId, text, undefined, newSentenceId);
         }
 
-        if (newSentenceId) {
-          // Add the new sentence to the messages state
-          handleNewContent(text, 'user', 'sentence', newSentenceId);
-          
-          // Update the emphasized sentence
+        // Add the new sentence to the messages state
+        handleNewContent(text, 'user', 'sentence', newSentenceId);
+        
+        // Update the emphasized sentence based on the reply type
+        if (emphasizedType === 'sentence') {
+          console.log("emphasizedType === 'sentence'")
+          // Emphasize the new sentence
           setEmphasizedSentenceId(newSentenceId);
           setEmphasizedSentenceType('sentence');
-          
-          console.log('New sentence/paragraph added:', newSentenceId);
+          setEmphasizedMessageId(newSentenceId);
+          setSelectedMessageId(newSentenceId);
+          setSelectedMessageType('sentence');
+        } else if (emphasizedType === 'remark') {
+          console.log("emphasizedType === 'remark'")
+          // De-emphasize all messages
+          setEmphasizedSentenceId(null);
+          setEmphasizedSentenceType(null);
+          setEmphasizedMessageId(null);
+          setSelectedMessageId(null);
+          setSelectedMessageType(null);
         } else {
-          console.error('Failed to add new sentence/paragraph');
+          console.log("EXCEPTION", emphasizedSentenceId, text);
         }
+        
+        console.log('New sentence/paragraph added:', newSentenceId);
       } else {
         console.error('documentRef is not available');
       }
     },
-    [handleNewContent, setEmphasizedSentenceId, setEmphasizedSentenceType]
+    [handleNewContent, setEmphasizedSentenceId, setEmphasizedSentenceType, setEmphasizedMessageId, setSelectedMessageId, setSelectedMessageType]
   )
 
   const handleNewResponse = useCallback(

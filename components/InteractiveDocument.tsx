@@ -988,6 +988,10 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   const [lastClickTime, setLastClickTime] = useState<number>(0)
   const [lastClickedSentenceId, setLastClickedSentenceId] = useState<string | null>(null)
 
+  const documentRef = useRef<any>(null);
+
+  const messageContainerRef = useRef<HTMLDivElement>(null);
+
   useImperativeHandle(ref, () => ({
     handleNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => {
       // Implement the logic for handling new responses here
@@ -998,7 +1002,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   const addRemark = useCallback((sentenceId: string) => {
     const newRemarkText = generateRandomSentence()
     const newRemarkId = `remark-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-    console.log('New remark ID created:', newRemarkId)
+    
     const pastelColor = `hsl(${Math.random() * 360}, 100%, 80%)`
     
     setParagraphs((prevParagraphs) => {
@@ -1021,7 +1025,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
 
   const addSentence = useCallback((text: string, paragraphId: string, index: number, isReplacingRemark: boolean = false) => {
     const newSentenceId = Date.now().toString()
-    console.log('New sentence ID created:', newSentenceId)
+    console.log('Sentence ID created:', newSentenceId)
     setParagraphs((prevParagraphs) => {
       const newParagraphs = prevParagraphs.map(paragraph => {
         if (paragraph.id === paragraphId) {
@@ -1072,7 +1076,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
       if (distance >= mouseMoveThreshold) {
         setNewlyPlacedSentence(null)
         setThresholdReached(true)
-        console.log('Mouse movement threshold reached. Expansions and solid cursors are now active.')
+        // console.log('Mouse movement threshold reached. Expansions and solid cursors are now active.')
       }
     }
   }, [newlyPlacedSentence, mouseMoveThreshold])
@@ -1336,13 +1340,32 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     return null
   }, [paragraphs, emphasizedRemarkIds])
 
-  const handleRemarkClick = useCallback((sentenceId: string) => {
-    const nextRemarkId = cycleEmphasizedRemark(sentenceId)
-    if (nextRemarkId) {
-      onEmphasizeRemark(nextRemarkId, sentenceId)
-      onRemarkClick(sentenceId)
+  const scrollToMessage = useCallback((messageId: string) => {
+    console.log("scrollToMessage called with messageId:", messageId)
+    if (messageContainerRef.current) {
+      const messageElements = messageContainerRef.current.querySelectorAll('.message-item');
+      const targetMessage = Array.from(messageElements).find(
+        (element) => element.getAttribute('data-message-id') === messageId
+      );
+
+      if (targetMessage) {
+        console.log(`Initiating smooth scroll to message: ${messageId}`);
+        targetMessage.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } else {
+        console.log(`Message element not found for ID: ${messageId}`);
+      }
     }
-  }, [cycleEmphasizedRemark, onEmphasizeRemark, onRemarkClick])
+  }, []);
+
+  const handleRemarkClick = useCallback((sentenceId: string) => {
+    const nextRemarkId = cycleEmphasizedRemark(sentenceId);
+    console.log('Next remark ID:', nextRemarkId);
+    if (nextRemarkId) {
+      props.onRemarkHover(nextRemarkId, null);
+      props.onEmphasizeRemark(nextRemarkId, sentenceId);
+      scrollToMessage(nextRemarkId);
+    }
+  }, [cycleEmphasizedRemark, scrollToMessage, props.onRemarkHover, props.onEmphasizeRemark]);
 
   // Expose the cycleEmphasizedRemark method through the ref
   useImperativeHandle(ref, () => ({
@@ -1378,14 +1401,15 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     onDocumentClick('sentence', sentenceId)
   }, [lastClickTime, lastClickedSentenceId, setEditingSentenceId, setFocusedCursorSpaceId, moveSentence, cursorSpaceRefs, onDocumentClick])
 
-  const addSentenceAfter = useCallback((afterSentenceId: string, newSentenceText: string) => {
+  // Update the addSentenceAfter method
+  const addSentenceAfter = useCallback((afterSentenceId: string, newSentenceText: string, newSentenceId: string) => {
     console.log("Adding sentence after")
+
     setParagraphs((prevParagraphs) => {
-      return prevParagraphs.map((paragraph) => {
+      const updatedParagraphs = prevParagraphs.map((paragraph) => {
         const afterIndex = paragraph.sentences.findIndex((s) => s.id === afterSentenceId);
         if (afterIndex === -1) return paragraph;
 
-        const newSentenceId = Date.now().toString();
         const newSentence = { id: newSentenceId, sentenceId: newSentenceId, text: newSentenceText, remarks: [], remarkColor: undefined };
         
         const updatedSentences = [
@@ -1396,37 +1420,47 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
 
         return { ...paragraph, sentences: updatedSentences };
       });
+
+      return updatedParagraphs;
     });
 
-    return newSentenceId;
-  }, []);
+    // Add remarks after 2 seconds and 5 seconds
+    setTimeout(() => addRemark(newSentenceId), 2000);
+    setTimeout(() => addRemark(newSentenceId), 5000);
 
-  // Add this new method to the InteractiveDocument component
-  const addSentenceToEnd = useCallback((text: string) => {
-    const lastParagraph = paragraphs[paragraphs.length - 1];
-    const newSentenceId = addSentence(text, lastParagraph.id, lastParagraph.sentences.length);
     return newSentenceId;
-  }, [paragraphs, addSentence]);
+  }, [addRemark]);
 
-  const addParagraphAfterSentence = useCallback((sentenceId: string | null, text: string, rejoinedRemarkId?: string) => {
-    console.log("Adding paragraph after sentence. sentenceId:", sentenceId, "text:", text, "rejoinedRemarkId:", rejoinedRemarkId);
-    let newSentenceId: string;
+  // Update the addParagraphAfterSentence method
+  const addParagraphAfterSentence = useCallback((sentenceId: string | null, text: string, rejoinedRemarkId?: string, newSentenceId?: string) => {
+    console.log("Adding paragraph after sentence. sentenceId:", sentenceId, "text:", text, "rejoinedRemarkId:", rejoinedRemarkId, "newSentenceId:", newSentenceId);
+    
+    if (!newSentenceId) {
+      newSentenceId = `sentence-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+    
+    let newParagraphId: string;
     
     if (!sentenceId) {
       console.log("No sentence is emphasized");
       // If no sentence is emphasized, add the paragraph at the end
-      newSentenceId = addParagraph(paragraphs.length, text);
+      newParagraphId = Date.now().toString();
+      const newParagraph: Paragraph = {
+        id: newParagraphId,
+        sentences: [{ id: newSentenceId, sentenceId: newSentenceId, text, remarks: [], remarkColor: undefined }],
+      };
+
+      setParagraphs(prevParagraphs => [...prevParagraphs, newParagraph]);
     } else {
       // Find the paragraph containing the sentence
       const paragraphIndex = paragraphs.findIndex(p => p.sentences.some(s => s.id === sentenceId));
-      console.log("Found sentence in paragraph at index:", paragraphIndex);
+    
       if (paragraphIndex === -1) {
         console.error('Sentence not found:', sentenceId);
         return null;
       }
 
-      const newParagraphId = Date.now().toString();
-      newSentenceId = `${newParagraphId}-1`;
+      newParagraphId = Date.now().toString();
       const newParagraph: Paragraph = {
         id: newParagraphId,
         sentences: [{ id: newSentenceId, sentenceId: newSentenceId, text, remarks: [], remarkColor: undefined }],
@@ -1459,8 +1493,28 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     setTimeout(() => addRemark(newSentenceId), 2000);
     setTimeout(() => addRemark(newSentenceId), 5000);
 
+    // Set the cursor after the new sentence
+    setTimeout(() => {
+      const cursorSpaceId = `${newParagraphId}-0`;
+      setFocusedCursorSpaceId(cursorSpaceId);
+      const cursorSpace = document.getElementById(cursorSpaceId);
+      if (cursorSpace) {
+        const contentEditableSpan = cursorSpace.querySelector('span[contenteditable]');
+        if (contentEditableSpan) {
+          (contentEditableSpan as HTMLElement).focus();
+          // Place the cursor at the end of the content
+          const range = document.createRange();
+          const sel = window.getSelection();
+          range.selectNodeContents(contentEditableSpan);
+          range.collapse(false);
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }
+      }
+    }, 0);
+
     return newSentenceId;
-  }, [paragraphs, addParagraph, addRemark]);
+  }, [paragraphs, addRemark, setFocusedCursorSpaceId]);
 
   // Update the useImperativeHandle hook
   useImperativeHandle(ref, () => ({
@@ -1469,8 +1523,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     },
     cycleEmphasizedRemark,
     addSentenceAfter,
-    addSentenceToEnd, // Add this new method
-    addParagraphAfterSentence, // Add this new method
+    addParagraphAfterSentence,
   }));
 
   return (
@@ -1478,6 +1531,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
       <div 
         className="document-container min-h-screen" 
         onClick={handleDocumentClick}
+        ref={documentRef}
       >
         <div className="document-content">
           <h1
@@ -1538,7 +1592,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
         onNewMessage={handleNewMessage}
         onMessageClick={handleMessageClick}
         selectedMessageId={selectedSentenceId}
-        selectedMessageType={selectedSentenceId ? 'sentence' : null}
+        selectedMessageType={selectedSentenceId ? 'sentence' : 'null'}
         inputRef={inputRef}
       />
     </DndProvider>

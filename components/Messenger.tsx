@@ -40,16 +40,15 @@ export function Messenger({
   useEffect(() => {
     if (messages.length > 0) {
       const latestMessage = messages[messages.length - 1];
-      console.log('New message received. ID:', latestMessage.id);
     }
   }, [messages]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (inputText.trim()) {
-      console.log("emphasized message Id: ", emphasizedMessageId)
-      console.log("emphasized sentence id: ", emphasizedSentenceId)
-      console.log("emphasized sentence type: ", emphasizedSentenceType)
+      // console.log("emphasized message Id: ", emphasizedMessageId)
+      // console.log("emphasized sentence id: ", emphasizedSentenceId)
+      // console.log("emphasized sentence type: ", emphasizedSentenceType)
       onNewMessage(inputText.trim(), emphasizedSentenceId, emphasizedMessageId, emphasizedSentenceType)
       setInputText('')
     }
