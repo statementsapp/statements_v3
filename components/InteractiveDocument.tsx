@@ -667,6 +667,7 @@ const ParagraphComponent: React.FC<{
     setFocusedCursorSpaceId(`${paragraph.id}-${index}`)
     
     // Generate remarks for the edited sentence
+    console.log("A")
     setTimeout(() => addRemark(sentenceId), 2000)
     setTimeout(() => addRemark(sentenceId), 5000)
 
@@ -1057,6 +1058,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     }, 0)
 
     // Set timeouts to add remarks after 2 seconds and 5 seconds
+    console.log("B")
     setTimeout(() => addRemark(newSentenceId), 2000)
     setTimeout(() => addRemark(newSentenceId), 5000)
 
@@ -1113,6 +1115,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   }
 
   const addParagraph = useCallback((index: number, text: string): { paragraphId: string, sentenceId: string } => {
+    console.log("Add paragraph called")
     const newParagraphId = Date.now().toString();
     const newSentenceId = `${newParagraphId}-1`;
     const newParagraph: Paragraph = {
@@ -1127,6 +1130,8 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     
     // Remove the onNewContent call from here
     // props.onNewContent(text, 'user', 'sentence', newSentenceId);
+    setTimeout(() => addRemark(newSentenceId), 2000);
+    setTimeout(() => addRemark(newSentenceId), 5000);
     
     return { paragraphId: newParagraphId, sentenceId: newSentenceId };
   }, []);
@@ -1247,6 +1252,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
         }, 0)
 
         // Set timeouts to add remarks after 2 seconds and 5 seconds
+        console.log("C")
         setTimeout(() => addRemark(newSentenceId), 2000)
         setTimeout(() => addRemark(newSentenceId), 5000)
       } else {
@@ -1395,6 +1401,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     });
 
     // Add remarks after 2 seconds and 5 seconds
+    console.log("D")
     setTimeout(() => addRemark(newSentenceId), 2000);
     setTimeout(() => addRemark(newSentenceId), 5000);
 
@@ -1460,6 +1467,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     console.log('About to return newSentenceId:', newSentenceId);
     
     // Add remarks after 2 seconds and 5 seconds
+    console.log("E")
     setTimeout(() => addRemark(newSentenceId), 2000);
     setTimeout(() => addRemark(newSentenceId), 5000);
 
