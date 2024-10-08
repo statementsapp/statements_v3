@@ -497,6 +497,12 @@ const ParagraphSeparator: React.FC<{
     }
   }, [isFocused])
 
+  const handleEnter = (text: string) => {
+    if (text.trim()) {
+      onEnter(text);
+    }
+  };
+
   return (
     <div 
       ref={separatorRef}
@@ -516,7 +522,7 @@ const ParagraphSeparator: React.FC<{
       )}
       <CursorSpace
         id={id}
-        onEnter={onEnter}
+        onEnter={handleEnter}
         onFocus={onFocus}
         isFocused={isFocused}
         isFirst={true}
@@ -543,9 +549,8 @@ const ParagraphComponent: React.FC<{
   focusedCursorSpaceId: string | null
   setFocusedCursorSpaceId: (id: string | null) => void
   isLast: boolean
-  addParagraph: (index: number, text: string) => void
+  addParagraph: (index: number, text: string) => { paragraphId: string, sentenceId: string }
   paragraphIndex: number
-  setFocusParagraphId: (id: string | null) => void
   moveSentence: (sentenceId: string, sourceParagraphId: string, targetParagraphId: string, targetIndex: number) => void
   newlyPlacedSentenceId: string | null
   onNewContent: (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string, sentenceId?: string) => void
@@ -568,7 +573,6 @@ const ParagraphComponent: React.FC<{
   isLast,
   addParagraph,
   paragraphIndex,
-  setFocusParagraphId,
   moveSentence,
   newlyPlacedSentenceId,
   onNewContent,
@@ -682,11 +686,9 @@ const ParagraphComponent: React.FC<{
     }
     lastSeparatorEnterRef.current = now
     const index = position === 'before' ? paragraphIndex : paragraphIndex + 1
-    const newParagraphId = addParagraph(index, text)
-    console.log('3. New paragraph added with ID:', newParagraphId) // Log 3
-    setFocusParagraphId(newParagraphId)
-    console.log('Setting focused cursor space ID to:', 'separator-enter')
-    setFocusedCursorSpaceId('separator-enter')
+    const { paragraphId, sentenceId } = addParagraph(index, text)
+    setFocusedCursorSpaceId(`${paragraphId}-0`)
+    // Remove the onNewContent call from here, as it's already called in addParagraph
   }
 
   const handleParagraphClick = (e: React.MouseEvent) => {
@@ -974,7 +976,6 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   ])
   const [editingSentenceId, setEditingSentenceId] = useState<string | null>(null)
   const [focusedCursorSpaceId, setFocusedCursorSpaceId] = useState<string | null>(null)
-  const [focusParagraphId, setFocusParagraphId] = useState<string | null>(null)
   const [newlyPlacedSentence, setNewlyPlacedSentence] = useState<{ id: string, initialX: number, initialY: number } | null>(null)
   const mouseMoveThreshold = 30
   const [thresholdReached, setThresholdReached] = useState(false)
@@ -1111,11 +1112,9 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     })
   }
 
-  const addParagraph = (index: number, text: string): string => {
+  const addParagraph = useCallback((index: number, text: string): { paragraphId: string, sentenceId: string } => {
     const newParagraphId = Date.now().toString();
-    console.log('New paragraph ID created:', newParagraphId);
     const newSentenceId = `${newParagraphId}-1`;
-    console.log('New sentence ID created for new paragraph:', newSentenceId);
     const newParagraph: Paragraph = {
       id: newParagraphId,
       sentences: [{ id: newSentenceId, sentenceId: newSentenceId, text, remarks: [], remarkColor: undefined }],
@@ -1125,42 +1124,14 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
       newParagraphs.splice(index, 0, newParagraph);
       return newParagraphs;
     });
-    return newSentenceId; // Return the new sentence ID instead of paragraph ID
-  };
+    
+    // Remove the onNewContent call from here
+    // props.onNewContent(text, 'user', 'sentence', newSentenceId);
+    
+    return { paragraphId: newParagraphId, sentenceId: newSentenceId };
+  }, []);
 
-  useEffect(() => {
-    if (focusParagraphId) {
-      console.log('4. Effect triggered. focusParagraphId:', focusParagraphId)
-      const paragraphIndex = paragraphs.findIndex(p => p.id === focusParagraphId)
-      if (paragraphIndex !== -1) {
-        const paragraph = paragraphs[paragraphIndex]
-        if (paragraph && paragraph.sentences.length > 0) {
-          if (focusedCursorSpaceId === 'separator-enter') {
-            // Function to find the correct cursor space
-            const findCorrectCursorSpace = (index: number): string => {
-              console.log('Finding correct cursor space for index:', index)
-              const p = paragraphs[index]
-              if (p && p.sentences.length > 0) {
-                return `${p.id}-${p.sentences.length - 1}`
-              }
-              // If the paragraph is empty, return its start cursor space
-              return `${p.id}-start`
-            }
-
-            // Find the correct cursor space for the newly added paragraph
-            const correctCursorSpace = findCorrectCursorSpace(paragraphIndex)
-            console.log('5. Correct cursor space:', correctCursorSpace)
-            setFocusedCursorSpaceId(correctCursorSpace)
-          } else {
-            // For other cases, keep the existing behavior
-            console.log('Setting focused cursor space ID to:', `${paragraph.id}-0`)
-            setFocusedCursorSpaceId(`${paragraph.id}-0`)
-          }
-        }
-      }
-      setFocusParagraphId(null)
-    }
-  }, [paragraphs, focusParagraphId, focusedCursorSpaceId])
+  // Remove the useEffect that was handling focusParagraphId
 
   const moveSentence = useCallback((sentenceId: string, sourceParagraphId: string, targetParagraphId: string, targetIndex: number) => {
     setParagraphs((prevParagraphs) => {
@@ -1528,7 +1499,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   return (
     <DndProvider backend={HTML5Backend}>
       <div 
-        className="document-container h-full overflow-auto" // Updated this line
+        className="document-container h-full overflow-auto"
         onClick={handleDocumentClick}
         ref={documentRef}
       >
@@ -1546,10 +1517,10 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
           <ParagraphSeparator
             id={`separator-before-first`}
             onEnter={(text) => {
-              const newParagraphId = addParagraph(0, text)
-              setFocusedCursorSpaceId(`${newParagraphId}-0`)
-              setFocusParagraphId(newParagraphId)
-              onNewContent(text, 'user', 'sentence', Date.now().toString())
+              const { paragraphId, sentenceId } = addParagraph(0, text);
+              setFocusedCursorSpaceId(`${paragraphId}-0`);
+              // Call onNewContent here instead
+              props.onNewContent(text, 'user', 'sentence', sentenceId);
             }}
             onFocus={() => setFocusedCursorSpaceId(`separator-before-first`)}
             isFocused={focusedCursorSpaceId === `separator-before-first`}
@@ -1569,7 +1540,6 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
               isLast={index === paragraphs.length - 1}
               addParagraph={addParagraph}
               paragraphIndex={index}
-              setFocusParagraphId={setFocusParagraphId}
               moveSentence={moveSentence}
               newlyPlacedSentenceId={newlyPlacedSentence?.id ?? null}
               onNewContent={onNewContent}
