@@ -147,42 +147,54 @@ export default function DocumentWithMessenger({
     if (sentenceId && remarkId) {
       setEmphasizedRemarkIds(prev => ({ ...prev, [sentenceId]: remarkId }))
     }
+    // Scroll to the emphasized remark in the Messenger component
+    const messageElement = document.querySelector(`[data-message-id="${remarkId}"]`);
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }, [])
 
   const handleRemarkClick = useCallback((sentenceId: string) => {
     if (documentRef.current) {
-      const nextRemarkId = documentRef.current.cycleEmphasizedRemark(sentenceId)
-      console.log('Next remark ID:', nextRemarkId)
+      const nextRemarkId = documentRef.current.cycleEmphasizedRemark(sentenceId);
+      console.log('Next remark ID:', nextRemarkId);
       if (nextRemarkId) {
         setHoveredRemarkId(nextRemarkId);
         setEmphasizedMessageId(nextRemarkId);
+        setEmphasizedSentenceId(sentenceId);
+        setEmphasizedSentenceType('remark');
         if (inputRef.current) {
           inputRef.current.focus();
+        }
+        // Scroll to the emphasized remark in the Messenger component
+        const messageElement = document.querySelector(`[data-message-id="${nextRemarkId}"]`);
+        if (messageElement) {
+          messageElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
       }
     }
   }, [])
 
   const handleDocumentClick = useCallback((clickType: 'document' | 'sentence', sentenceId?: string) => {
+    // Always reset emphasis for any click in the document
     setEmphasizedMessageId(null)
     setHoveredRemarkId(null)
+    setEmphasizedSentenceId(null)
+    setEmphasizedSentenceType(null)
+    setSelectedMessageId(null)
+    setSelectedMessageType(null)
     
-    if (clickType === 'sentence' && sentenceId) {
-      // If a sentence was clicked, you might want to do something specific here
-      // For example, you could set the selectedMessageId to the clicked sentence
-      setSelectedMessageId(sentenceId)
-      setSelectedMessageType('sentence')
-    } else {
-      // If it's a general document click, clear the selection
-      setSelectedMessageId(null)
-      setSelectedMessageType(null)
-    }
+    // If you want to keep the ability to select sentences, you can uncomment these lines
+    // if (clickType === 'sentence' && sentenceId) {
+    //   setSelectedMessageId(sentenceId)
+    //   setSelectedMessageType('sentence')
+    // }
   }, [])
 
   return (
-    <div className="flex justify-center min-h-screen bg-black text-white">
+    <div className="flex justify-center h-screen bg-black text-white overflow-hidden"> {/* Updated this line */}
       <div className="flex w-full max-w-7xl mx-auto">
-        <div className="w-2/3 p-6 bg-black border-r border-gray-800 overflow-auto">
+        <div className="w-2/3 p-6 bg-black border-r border-gray-800 overflow-hidden"> {/* Updated this line */}
           <InteractiveDocument
             ref={documentRef}
             onNewContent={handleNewContent}
@@ -202,7 +214,7 @@ export default function DocumentWithMessenger({
             emphasizedSentenceType={emphasizedSentenceType}
           />
         </div>
-        <div className="w-1/3 p-6 bg-black flex flex-col">
+        <div className="w-1/3 p-6 bg-black flex flex-col overflow-hidden"> {/* Updated this line */}
           <Messenger
             messages={messages}
             onNewMessage={(text) => handleNewMessage(text, emphasizedSentenceId, emphasizedMessageId, emphasizedSentenceType)}

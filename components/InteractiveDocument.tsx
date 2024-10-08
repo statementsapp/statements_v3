@@ -1213,6 +1213,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   }, [newlyPlacedSentence, resetNewlyPlacedSentence])
 
   const handleDocumentClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    // Check if the click is directly on the document container
     if (e.target === e.currentTarget) {
       if (paragraphs.length > 0) {
         const lastParagraph = paragraphs[paragraphs.length - 1]
@@ -1220,7 +1221,8 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
         const lastCursorSpaceId = `${lastParagraph.id}-${lastSentenceIndex}`
         setFocusedCursorSpaceId(lastCursorSpaceId)
       }
-      onDocumentClick('document')
+      // Call onDocumentClick with 'document' type to reset emphasis in the messenger
+      props.onDocumentClick('document')
     }
 
     // Reset all cursor spaces except the focused one
@@ -1229,7 +1231,10 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
         ref.resetContent()
       }
     })
-  }, [paragraphs, focusedCursorSpaceId, onDocumentClick])
+
+    // Always call onDocumentClick to reset emphasis, even for clicks on sentences or other elements
+    props.onDocumentClick('document')
+  }, [paragraphs, focusedCursorSpaceId, props.onDocumentClick])
 
   const handleNewMessage = useCallback((text: string) => {
     console.log("handleNewMessage called from interactive document")
@@ -1341,19 +1346,13 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   }, [paragraphs, emphasizedRemarkIds])
 
   const scrollToMessage = useCallback((messageId: string) => {
-    console.log("scrollToMessage called with messageId:", messageId)
-    if (messageContainerRef.current) {
-      const messageElements = messageContainerRef.current.querySelectorAll('.message-item');
-      const targetMessage = Array.from(messageElements).find(
-        (element) => element.getAttribute('data-message-id') === messageId
-      );
-
-      if (targetMessage) {
-        console.log(`Initiating smooth scroll to message: ${messageId}`);
-        targetMessage.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      } else {
-        console.log(`Message element not found for ID: ${messageId}`);
-      }
+    console.log("scrollToMessage called with messageId:", messageId);
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      console.log(`Scrolling to message: ${messageId}`);
+    } else {
+      console.log(`Message element not found for ID: ${messageId}`);
     }
   }, []);
 
@@ -1529,7 +1528,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   return (
     <DndProvider backend={HTML5Backend}>
       <div 
-        className="document-container min-h-screen" 
+        className="document-container h-full overflow-auto" // Updated this line
         onClick={handleDocumentClick}
         ref={documentRef}
       >
@@ -1587,14 +1586,6 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
           ))}
         </div>
       </div>
-      <Messenger
-        messages={messages}
-        onNewMessage={handleNewMessage}
-        onMessageClick={handleMessageClick}
-        selectedMessageId={selectedSentenceId}
-        selectedMessageType={selectedSentenceId ? 'sentence' : 'null'}
-        inputRef={inputRef}
-      />
     </DndProvider>
   )
 })

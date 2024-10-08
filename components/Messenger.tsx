@@ -73,6 +73,7 @@ export function Messenger({
         {messages.map((message, index) => (
           <div
             key={`${message.id}-${index}`}
+            data-message-id={message.id}
             className={`p-2 mb-2 rounded cursor-pointer transition-all duration-200 ${
               message.sender === 'user' ? 'bg-gray-800 ml-auto' : 'bg-gray-700'
             } ${
