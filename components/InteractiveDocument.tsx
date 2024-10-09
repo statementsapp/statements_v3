@@ -217,9 +217,9 @@ const CursorSpace = React.forwardRef<
             ) : (
               <span 
                 className="text-white inline-block" 
-                style={{ verticalAlign: 'sub', fontSize: '0.8em' }}
+                style={{ verticalAlign: 'top', fontSize: '0.8em' }}
               >
-                ⊕
+                †
               </span>
             )}
           </span>
@@ -847,12 +847,12 @@ const ParagraphComponent: React.FC<{
                 {' '}
                 <span 
                   className="text-white inline-block cursor-pointer" 
-                  style={{ verticalAlign: 'sub', fontSize: '0.8em' }}
+                  style={{ verticalAlign: 'top', fontSize: '0.8em' }}
                   onClick={() => onRemarkClick(sentence.id)}
                   onMouseEnter={() => onRemarkMouseEnter(sentence.id)}
                   onMouseLeave={onRemarkMouseLeave}
                 >
-                  ⊕
+                  †
                 </span>
               </>
             )}
