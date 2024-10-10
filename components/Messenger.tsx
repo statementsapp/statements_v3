@@ -8,7 +8,7 @@ export type Message = {
   sender: 'user' | 'ai'
   type: 'sentence' | 'remark'
   sentenceId?: string
-  rejoined?: boolean // This property indicates if a message (remark) has been rejoined
+  rejoined?: boolean
 }
 
 interface MessengerProps {
@@ -47,18 +47,20 @@ export function Messenger({
     }
   }
 
-  const handleMessageClick = useCallback((messageId: string, type: 'sentence' | 'remark') => {
-    onMessageClick(messageId, type)
-    if (inputRef.current) {
-      inputRef.current.focus()
+  const handleMessageClick = useCallback((messageId: string, type: 'sentence' | 'remark', rejoined: boolean) => {
+    if (!rejoined) {
+      onMessageClick(messageId, type)
+      if (inputRef.current) {
+        inputRef.current.focus()
+      }
     }
   }, [onMessageClick, inputRef])
 
-  const isMessageEmphasized = (messageId: string) => 
-    emphasizedMessageId === messageId || hoveredRemarkId === messageId
+  const isMessageEmphasized = (messageId: string, rejoined: boolean) => 
+    !rejoined && (emphasizedMessageId === messageId || hoveredRemarkId === messageId)
 
-  const shouldDimMessage = (messageId: string) =>
-    (emphasizedMessageId !== null || hoveredRemarkId !== null) && !isMessageEmphasized(messageId)
+  const shouldDimMessage = (messageId: string, rejoined: boolean) =>
+    rejoined || ((emphasizedMessageId !== null || hoveredRemarkId !== null) && !isMessageEmphasized(messageId, rejoined))
 
   return (
     <div className="flex flex-col h-full messenger-container">
@@ -67,27 +69,29 @@ export function Messenger({
           <div
             key={`${message.id}-${index}`}
             data-message-id={message.id}
-            className={`p-2 mb-2 rounded cursor-pointer transition-all duration-200 ${
+            className={`p-2 mb-2 rounded transition-all duration-200 ${
               message.sender === 'user' ? 'bg-gray-800 ml-auto' : 'bg-gray-700'
             } ${
-              hoveredMessageId === message.id ? 'bg-opacity-80' : ''
+              hoveredMessageId === message.id && !message.rejoined ? 'bg-opacity-80' : ''
             } ${
-              emphasizedMessageId === message.id
+              isMessageEmphasized(message.id, message.rejoined ?? false)
                 ? 'border-2 border-white bg-opacity-100'
-                : emphasizedMessageId !== null
+                : shouldDimMessage(message.id, message.rejoined ?? false)
                 ? 'opacity-50'
                 : ''
+            } ${
+              message.rejoined ? 'cursor-default' : 'cursor-pointer'
             }`}
             style={{
               maxWidth: '80%',
-              boxShadow: emphasizedMessageId === message.id ? '0 0 0 2px rgba(255, 255, 255, 0.5)' : 'none',
+              boxShadow: isMessageEmphasized(message.id, message.rejoined ?? false) ? '0 0 0 2px rgba(255, 255, 255, 0.5)' : 'none',
             }}
-            onClick={() => handleMessageClick(message.id, message.type)}
-            onMouseEnter={() => setHoveredMessageId(message.id)}
-            onMouseLeave={() => setHoveredMessageId(null)}
+            onClick={() => handleMessageClick(message.id, message.type, message.rejoined ?? false)}
+            onMouseEnter={() => !message.rejoined && setHoveredMessageId(message.id)}
+            onMouseLeave={() => !message.rejoined && setHoveredMessageId(null)}
           >
             <div className="flex items-center justify-between">
-              <span>{message.text}</span>
+              <span className={message.rejoined ? 'text-gray-500' : ''}>{message.text}</span>
               {message.type === 'remark' && message.rejoined && (
                 <motion.div
                   initial={{ scale: 0, opacity: 0 }}

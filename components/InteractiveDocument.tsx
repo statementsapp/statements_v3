@@ -1378,26 +1378,34 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   const handleRemarkClick = useCallback((sentenceId: string) => {
     setIsDaggerClicked(true);
     const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId);
-    setIsDaggerClicked(true)
     
     if (sentence && sentence.remarks.length > 0) {
-      let nextRemarkIndex;
+      let nextRemarkIndex = -1;
       const currentRemarkId = emphasizedRemarkId;
       const currentIndex = sentence.remarks.findIndex(r => r.id === currentRemarkId);
       
-      if (currentIndex === -1 || currentIndex === sentence.remarks.length - 1) {
-        // If no remark is currently emphasized or we're at the last remark, start from the beginning
-        nextRemarkIndex = 0;
-      } else {
-        // Move to the next remark
-        nextRemarkIndex = currentIndex + 1;
+      // Find the next non-rejoined remark
+      for (let i = 1; i <= sentence.remarks.length; i++) {
+        const index = (currentIndex + i) % sentence.remarks.length;
+        if (!sentence.remarks[index].rejoined) {
+          nextRemarkIndex = index;
+          break;
+        }
       }
 
-      const nextRemark = sentence.remarks[nextRemarkIndex];
-      setEmphasizedRemarkId(nextRemark.id);
-      setEmphasizedSentenceId(sentenceId);
-      onEmphasizeRemark(nextRemark.id, sentenceId);
-      onRemarkHover(nextRemark.id, nextRemark.text);
+      if (nextRemarkIndex !== -1) {
+        const nextRemark = sentence.remarks[nextRemarkIndex];
+        setEmphasizedRemarkId(nextRemark.id);
+        setEmphasizedSentenceId(sentenceId);
+        onEmphasizeRemark(nextRemark.id, sentenceId);
+        onRemarkHover(nextRemark.id, nextRemark.text);
+      } else {
+        // If all remarks are rejoined, clear the emphasis
+        setEmphasizedRemarkId(null);
+        setEmphasizedSentenceId(null);
+        onEmphasizeRemark(null, null);
+        onRemarkHover(null, null);
+      }
     } else {
       // If there are no remarks, clear the emphasis
       setEmphasizedRemarkId(null);
