@@ -13,15 +13,13 @@ export type Message = {
 
 interface MessengerProps {
   messages: Message[]
-  onNewMessage: (text: string, emphasizedSentenceId: string | null, emphasizedMessageId: string | null, emphasizedType: 'sentence' | 'remark' | null) => void
+  onNewMessage: (text: string, emphasizedMessageId: string | null, emphasizedType: 'sentence' | 'remark' | null) => void
   onMessageClick: (messageId: string, type: 'sentence' | 'remark') => void
   selectedMessageId: string | null
   selectedMessageType: 'sentence' | 'remark' | null
   inputRef: React.RefObject<HTMLInputElement>
   hoveredRemarkId: string | null
   emphasizedMessageId: string | null
-  emphasizedSentenceId: string | null
-  emphasizedSentenceType: 'sentence' | 'remark' | null
 }
 
 export function Messenger({
@@ -33,8 +31,6 @@ export function Messenger({
   inputRef,
   hoveredRemarkId,
   emphasizedMessageId,
-  emphasizedSentenceId,
-  emphasizedSentenceType,
 }: MessengerProps) {
   const [inputText, setInputText] = useState('')
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null)
@@ -42,7 +38,7 @@ export function Messenger({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (inputText.trim()) {
-      onNewMessage(inputText.trim(), emphasizedSentenceId, emphasizedMessageId, emphasizedSentenceType)
+      onNewMessage(inputText.trim(), emphasizedMessageId, selectedMessageType)
       setInputText('')
     }
   }
@@ -50,17 +46,14 @@ export function Messenger({
   const handleMessageClick = useCallback((messageId: string, type: 'sentence' | 'remark', rejoined: boolean) => {
     if (!rejoined) {
       onMessageClick(messageId, type)
-      if (inputRef.current) {
-        inputRef.current.focus()
-      }
     }
-  }, [onMessageClick, inputRef])
+  }, [onMessageClick])
 
   const isMessageEmphasized = (messageId: string, rejoined: boolean) => 
-    !rejoined && (emphasizedMessageId === messageId || hoveredRemarkId === messageId)
+    !rejoined && emphasizedMessageId === messageId
 
   const shouldDimMessage = (messageId: string, rejoined: boolean) =>
-    rejoined || ((emphasizedMessageId !== null || hoveredRemarkId !== null) && !isMessageEmphasized(messageId, rejoined))
+    rejoined || (emphasizedMessageId !== null && !isMessageEmphasized(messageId, rejoined))
 
   return (
     <div className="flex flex-col h-full messenger-container">

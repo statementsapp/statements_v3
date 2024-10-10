@@ -753,9 +753,13 @@ const ParagraphComponent: React.FC<{
 
   const handleRemarkMouseEnter = (sentenceId: string) => {
     // Clear emphasis on all other messages
-    setEmphasizedRemarkId(null);
-    setEmphasizedSentenceId(null);
-    props.onEmphasizeRemark(null, null);
+    props.onClearEmphasis();
+
+    // Clear input box content and unfocus it
+    props.onClearInput();
+    if (props.inputRef.current) {
+      props.inputRef.current.blur();
+    }
 
     // Find the sentence in the paragraphs
     const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId);
@@ -764,12 +768,11 @@ const ParagraphComponent: React.FC<{
       const mostRecentRemark = sentence.remarks[sentence.remarks.length - 1];
       
       // Set the emphasized remark and sentence IDs
-      setEmphasizedRemarkId(mostRecentRemark.id);
-      setEmphasizedSentenceId(sentenceId);
-
-      // Call the onEmphasizeRemark prop
       props.onEmphasizeRemark(mostRecentRemark.id, sentenceId);
     }
+
+    // Reset the first click state
+    setIsFirstClick(true);
   }
 
   const handleRemarkClick = (sentenceId: string) => {
@@ -972,6 +975,9 @@ interface InteractiveDocumentProps {
   onDocumentClick: (clickType: 'document' | 'sentence', sentenceId?: string) => void;
   emphasizedSentenceId: string | null;
   emphasizedSentenceType: 'sentence' | 'remark' | null;
+  onClearEmphasis: () => void;
+  onClearInput: () => void; // Add this new prop
+  inputRef: React.RefObject<HTMLInputElement>;
 }
 
 const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, ref) => {
@@ -1030,6 +1036,8 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
 
   const [emphasizedRemarkId, setEmphasizedRemarkId] = useState<string | null>(null);
   const [emphasizedSentenceId, setEmphasizedSentenceId] = useState<string | null>(null);
+
+  const [isFirstClick, setIsFirstClick] = useState(true);
 
   useImperativeHandle(ref, () => ({
     handleNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => {
@@ -1334,9 +1342,13 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
 
   const handleRemarkMouseEnter = useCallback((sentenceId: string) => {
     // Clear emphasis on all other messages
-    setEmphasizedRemarkId(null);
-    setEmphasizedSentenceId(null);
-    props.onEmphasizeRemark(null, null);
+    props.onClearEmphasis();
+
+    // Clear input box content and unfocus it
+    props.onClearInput();
+    if (props.inputRef.current) {
+      props.inputRef.current.blur();
+    }
 
     // Find the sentence in the paragraphs
     const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId);
@@ -1345,16 +1357,65 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
       const mostRecentRemark = sentence.remarks[sentence.remarks.length - 1];
       
       // Set the emphasized remark and sentence IDs
-      setEmphasizedRemarkId(mostRecentRemark.id);
-      setEmphasizedSentenceId(sentenceId);
-
-      // Call the onEmphasizeRemark prop
       props.onEmphasizeRemark(mostRecentRemark.id, sentenceId);
     }
-  }, [paragraphs, props.onEmphasizeRemark]);
+
+    // Reset the first click state
+    setIsFirstClick(true);
+  }, [paragraphs, props.onEmphasizeRemark, props.onClearEmphasis, props.onClearInput, props.inputRef]);
+
+  const handleRemarkClick = useCallback((sentenceId: string) => {
+    setIsDaggerClicked(true);
+
+    if (isFirstClick) {
+      // On first click, just focus the input box
+      if (props.inputRef && props.inputRef.current) {
+        props.inputRef.current.focus();
+      }
+      setIsFirstClick(false);
+    } else {
+      // On subsequent clicks, cycle through remarks
+      const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId);
+      
+      if (sentence && sentence.remarks.length > 0) {
+        let nextRemarkIndex = -1;
+        const currentRemarkId = emphasizedRemarkId;
+        const currentIndex = sentence.remarks.findIndex(r => r.id === currentRemarkId);
+        
+        // Find the next non-rejoined remark
+        for (let i = 1; i <= sentence.remarks.length; i++) {
+          const index = (currentIndex + i) % sentence.remarks.length;
+          if (!sentence.remarks[index].rejoined) {
+            nextRemarkIndex = index;
+            break;
+          }
+        }
+
+        if (nextRemarkIndex !== -1) {
+          const nextRemark = sentence.remarks[nextRemarkIndex];
+          setEmphasizedRemarkId(nextRemark.id);
+          setEmphasizedSentenceId(sentenceId);
+          onEmphasizeRemark(nextRemark.id, sentenceId);
+          onRemarkHover(nextRemark.id, nextRemark.text);
+        } else {
+          // If all remarks are rejoined, clear the emphasis
+          setEmphasizedRemarkId(null);
+          setEmphasizedSentenceId(null);
+          onEmphasizeRemark(null, null);
+          onRemarkHover(null, null);
+        }
+      } else {
+        // If there are no remarks, clear the emphasis
+        setEmphasizedRemarkId(null);
+        setEmphasizedSentenceId(null);
+        onEmphasizeRemark(null, null);
+        onRemarkHover(null, null);
+      }
+    }
+  }, [paragraphs, emphasizedRemarkId, onEmphasizeRemark, onRemarkHover, setEmphasizedRemarkId, setEmphasizedSentenceId, isFirstClick, props.inputRef]);
 
   const handleRemarkMouseLeave = useCallback(() => {
-    console.log("handleRemarkMouseLeave called")
+    console.log("handleRemarkMouseLeave called");
     if (!isDaggerClicked) {
       setEmphasizedRemarkId(null);
       setEmphasizedSentenceId(null);
@@ -1362,6 +1423,8 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     }
     // Reset the isDaggerClicked state for the next interaction
     setIsDaggerClicked(false);
+    // Reset the first click state
+    setIsFirstClick(true);
   }, [props.onEmphasizeRemark, isDaggerClicked]);
 
   const scrollToMessage = useCallback((messageId: string) => {
@@ -1374,46 +1437,6 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
       console.log(`Message element not found for ID: ${messageId}`);
     }
   }, []);
-
-  const handleRemarkClick = useCallback((sentenceId: string) => {
-    setIsDaggerClicked(true);
-    const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId);
-    
-    if (sentence && sentence.remarks.length > 0) {
-      let nextRemarkIndex = -1;
-      const currentRemarkId = emphasizedRemarkId;
-      const currentIndex = sentence.remarks.findIndex(r => r.id === currentRemarkId);
-      
-      // Find the next non-rejoined remark
-      for (let i = 1; i <= sentence.remarks.length; i++) {
-        const index = (currentIndex + i) % sentence.remarks.length;
-        if (!sentence.remarks[index].rejoined) {
-          nextRemarkIndex = index;
-          break;
-        }
-      }
-
-      if (nextRemarkIndex !== -1) {
-        const nextRemark = sentence.remarks[nextRemarkIndex];
-        setEmphasizedRemarkId(nextRemark.id);
-        setEmphasizedSentenceId(sentenceId);
-        onEmphasizeRemark(nextRemark.id, sentenceId);
-        onRemarkHover(nextRemark.id, nextRemark.text);
-      } else {
-        // If all remarks are rejoined, clear the emphasis
-        setEmphasizedRemarkId(null);
-        setEmphasizedSentenceId(null);
-        onEmphasizeRemark(null, null);
-        onRemarkHover(null, null);
-      }
-    } else {
-      // If there are no remarks, clear the emphasis
-      setEmphasizedRemarkId(null);
-      setEmphasizedSentenceId(null);
-      onEmphasizeRemark(null, null);
-      onRemarkHover(null, null);
-    }
-  }, [paragraphs, emphasizedRemarkId, onEmphasizeRemark, onRemarkHover, setEmphasizedRemarkId, setEmphasizedSentenceId]);
 
   // Add this new function
   const handleEmphasizeRemark = useCallback((remarkId: string | null, sentenceId: string | null) => {

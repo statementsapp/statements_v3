@@ -17,11 +17,7 @@ export default function DocumentWithMessenger({
   const documentRef = useRef<any>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [hoveredRemarkId, setHoveredRemarkId] = useState<string | null>(null);
-  const [emphasizedRemarkId, setEmphasizedRemarkId] = useState<string | null>(null)
-  const [emphasizedSentenceId, setEmphasizedSentenceId] = useState<string | null>(null)
-  const [emphasizedRemarkIds, setEmphasizedRemarkIds] = useState<{ [sentenceId: string]: string }>({})
   const [emphasizedMessageId, setEmphasizedMessageId] = useState<string | null>(null)
-  const [emphasizedSentenceType, setEmphasizedSentenceType] = useState<'sentence' | 'remark' | null>(null)
 
   const handleNewContent = useCallback(
     (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string, sentenceId?: string) => {
@@ -71,8 +67,6 @@ export default function DocumentWithMessenger({
         handleNewContent(text, 'user', 'sentence', newSentenceId);
         
         // Reset emphasis after adding new content
-        setEmphasizedSentenceId(null);
-        setEmphasizedSentenceType(null);
         setEmphasizedMessageId(null);
         setSelectedMessageId(null);
         setSelectedMessageType(null);
@@ -109,24 +103,25 @@ export default function DocumentWithMessenger({
 
   const handleEmphasizeMessage = useCallback((messageId: string | null) => {
     setEmphasizedMessageId(messageId)
-    if (messageId) {
-      const emphasizedMessage = messages.find(message => message.id === messageId)
-      if (emphasizedMessage) {
-        setEmphasizedSentenceId(emphasizedMessage.sentenceId || null)
-        setEmphasizedSentenceType(emphasizedMessage.type)
-      }
-    } else {
-      setEmphasizedSentenceId(null)
-      setEmphasizedSentenceType(null)
-    }
-  }, [messages])
+  }, [])
 
   const handleMessageClickInternal = useCallback((messageId: string, type: 'sentence' | 'remark') => {
+    // Clear emphasis on all messages
+    setEmphasizedMessageId(null)
+    setHoveredRemarkId(null)
+
+    // Set the new emphasis
     setSelectedMessageId(messageId)
     setSelectedMessageType(type)
-    handleEmphasizeMessage(messageId)
+    setEmphasizedMessageId(messageId)
+
     onMessageClick(messageId, type)
-  }, [onMessageClick, handleEmphasizeMessage])
+
+    // Focus the input
+    if (inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [onMessageClick])
 
   const handleRemarkHover = useCallback((remarkId: string | null, remarkText: string | null) => {
     console.log('Remark ID:', remarkId)
@@ -138,19 +133,19 @@ export default function DocumentWithMessenger({
     }
   }, [])
 
+  const handleClearEmphasis = useCallback(() => {
+    setEmphasizedMessageId(null);
+    setHoveredRemarkId(null);
+  }, []);
+
   const handleEmphasizeRemark = useCallback((remarkId: string | null, sentenceId: string | null) => {
-    setEmphasizedMessageId(remarkId)
-    setEmphasizedSentenceId(sentenceId)
-    setEmphasizedSentenceType('remark')
-    if (sentenceId && remarkId) {
-      setEmphasizedRemarkIds(prev => ({ ...prev, [sentenceId]: remarkId }))
-    }
+    setEmphasizedMessageId(remarkId);
     // Scroll to the emphasized remark in the Messenger component
     const messageElement = document.querySelector(`[data-message-id="${remarkId}"]`);
     if (messageElement) {
       messageElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [])
+  }, []);
 
   const handleRemarkClick = useCallback((sentenceId: string) => {
     if (documentRef.current) {
@@ -169,17 +164,15 @@ export default function DocumentWithMessenger({
     // Always reset emphasis for any click in the document
     setEmphasizedMessageId(null)
     setHoveredRemarkId(null)
-    setEmphasizedSentenceId(null)
-    setEmphasizedSentenceType(null)
     setSelectedMessageId(null)
     setSelectedMessageType(null)
-    
-    // If you want to keep the ability to select sentences, you can uncomment these lines
-    // if (clickType === 'sentence' && sentenceId) {
-    //   setSelectedMessageId(sentenceId)
-    //   setSelectedMessageType('sentence')
-    // }
   }, [])
+
+  const handleClearInput = useCallback(() => {
+    if (inputRef.current) {
+      inputRef.current.value = '';
+    }
+  }, []);
 
   return (
     <div className="flex justify-center h-screen bg-black text-white overflow-hidden">
@@ -190,7 +183,7 @@ export default function DocumentWithMessenger({
             onNewContent={handleNewContent}
             onContentClick={(messageId: string, type: 'sentence' | 'remark') => {
               console.log('Content clicked:', messageId, type)
-              handleEmphasizeMessage(messageId)
+              setEmphasizedMessageId(messageId)
             }}
             onRemarkHover={handleRemarkHover}
             onNewResponse={handleNewResponse}
@@ -203,24 +196,24 @@ export default function DocumentWithMessenger({
               }
             }}
             onEmphasizeRemark={handleEmphasizeRemark}
+            onClearEmphasis={handleClearEmphasis}
+            onClearInput={handleClearInput}
             onRemarkClick={handleRemarkClick}
             onDocumentClick={handleDocumentClick}
-            emphasizedSentenceId={emphasizedSentenceId}
-            emphasizedSentenceType={emphasizedSentenceType}
+            emphasizedMessageId={emphasizedMessageId}
+            inputRef={inputRef}
           />
         </div>
         <div className="w-1/3 p-6 bg-black flex flex-col overflow-hidden">
           <Messenger
             messages={messages}
-            onNewMessage={(text) => handleNewMessage(text, emphasizedSentenceId, emphasizedMessageId, emphasizedSentenceType)}
+            onNewMessage={(text) => handleNewMessage(text, emphasizedMessageId, selectedMessageType)}
             onMessageClick={handleMessageClickInternal}
             selectedMessageId={selectedMessageId}
             selectedMessageType={selectedMessageType}
             inputRef={inputRef}
             hoveredRemarkId={hoveredRemarkId}
             emphasizedMessageId={emphasizedMessageId}
-            emphasizedSentenceId={emphasizedSentenceId}
-            emphasizedSentenceType={emphasizedSentenceType}
           />
         </div>
       </div>
