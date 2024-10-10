@@ -72,15 +72,15 @@ export function Messenger({
             } ${
               hoveredMessageId === message.id ? 'bg-opacity-80' : ''
             } ${
-              isMessageEmphasized(message.id)
+              emphasizedMessageId === message.id
                 ? 'border-2 border-white bg-opacity-100'
-                : shouldDimMessage(message.id)
+                : emphasizedMessageId !== null
                 ? 'opacity-50'
                 : ''
             }`}
             style={{
               maxWidth: '80%',
-              boxShadow: hoveredRemarkId === message.id ? '0 0 0 2px rgba(255, 255, 255, 0.5)' : 'none',
+              boxShadow: emphasizedMessageId === message.id ? '0 0 0 2px rgba(255, 255, 255, 0.5)' : 'none',
             }}
             onClick={() => handleMessageClick(message.id, message.type)}
             onMouseEnter={() => setHoveredMessageId(message.id)}

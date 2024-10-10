@@ -594,7 +594,6 @@ const ParagraphComponent: React.FC<{
   onSentenceClick: (sentenceId: string, paragraphId: string, index: number, e: React.MouseEvent) => void
   onEmphasizeRemark: (remarkId: string | null, sentenceId: string | null) => void
   onRemarkHover: (remarkId: string | null, remarkText: string | null) => void // Updated this prop
-  cycleEmphasizedRemark: (sentenceId: string) => string | null
   scrollToMessage: (messageId: string) => void
   emphasizedRemarkIds: { [sentenceId: string]: string }
 }> = ({ 
@@ -621,7 +620,6 @@ const ParagraphComponent: React.FC<{
   onSentenceClick,
   onEmphasizeRemark,
   onRemarkHover,
-  cycleEmphasizedRemark,
   scrollToMessage,
   emphasizedRemarkIds
 }) => {
@@ -754,10 +752,23 @@ const ParagraphComponent: React.FC<{
   }
 
   const handleRemarkMouseEnter = (sentenceId: string) => {
-    const sentence = paragraph.sentences.find(s => s.id === sentenceId)
+    // Clear emphasis on all other messages
+    setEmphasizedRemarkId(null);
+    setEmphasizedSentenceId(null);
+    props.onEmphasizeRemark(null, null);
+
+    // Find the sentence in the paragraphs
+    const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId);
+    
     if (sentence && sentence.remarks.length > 0) {
-      const mostRecentRemark = sentence.remarks[sentence.remarks.length - 1]
-      onEmphasizeRemark(mostRecentRemark.id, sentenceId)
+      const mostRecentRemark = sentence.remarks[sentence.remarks.length - 1];
+      
+      // Set the emphasized remark and sentence IDs
+      setEmphasizedRemarkId(mostRecentRemark.id);
+      setEmphasizedSentenceId(sentenceId);
+
+      // Call the onEmphasizeRemark prop
+      props.onEmphasizeRemark(mostRecentRemark.id, sentenceId);
     }
   }
 
@@ -1016,6 +1027,9 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
 
   // Add this new state variable
   const [isDaggerClicked, setIsDaggerClicked] = useState(false)
+
+  const [emphasizedRemarkId, setEmphasizedRemarkId] = useState<string | null>(null);
+  const [emphasizedSentenceId, setEmphasizedSentenceId] = useState<string | null>(null);
 
   useImperativeHandle(ref, () => ({
     handleNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => {
@@ -1319,38 +1333,36 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   }, [])
 
   const handleRemarkMouseEnter = useCallback((sentenceId: string) => {
-    const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId)
+    // Clear emphasis on all other messages
+    setEmphasizedRemarkId(null);
+    setEmphasizedSentenceId(null);
+    props.onEmphasizeRemark(null, null);
+
+    // Find the sentence in the paragraphs
+    const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId);
+    
     if (sentence && sentence.remarks.length > 0) {
-      const mostRecentRemark = sentence.remarks[sentence.remarks.length - 1]
-      props.onEmphasizeRemark(mostRecentRemark.id, sentenceId)
+      const mostRecentRemark = sentence.remarks[sentence.remarks.length - 1];
+      
+      // Set the emphasized remark and sentence IDs
+      setEmphasizedRemarkId(mostRecentRemark.id);
+      setEmphasizedSentenceId(sentenceId);
+
+      // Call the onEmphasizeRemark prop
+      props.onEmphasizeRemark(mostRecentRemark.id, sentenceId);
     }
-  }, [paragraphs, props.onEmphasizeRemark])
+  }, [paragraphs, props.onEmphasizeRemark]);
 
   const handleRemarkMouseLeave = useCallback(() => {
     console.log("handleRemarkMouseLeave called")
     if (!isDaggerClicked) {
-      props.onEmphasizeRemark(null, null)
+      setEmphasizedRemarkId(null);
+      setEmphasizedSentenceId(null);
+      props.onEmphasizeRemark(null, null);
     }
     // Reset the isDaggerClicked state for the next interaction
-    setIsDaggerClicked(false)
-  }, [props.onEmphasizeRemark, isDaggerClicked])
-
-  const cycleEmphasizedRemark = useCallback((sentenceId: string) => {
-    console.log("cycleEmphasizedRemark called with sentenceId:", sentenceId)
-    const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId)
-    console.log("Sentence:", sentence)
-    if (sentence && sentence.remarks.length > 0) {
-      const currentRemarkId = emphasizedRemarkIds[sentenceId]
-      const currentIndex = sentence.remarks.findIndex(r => r.id === currentRemarkId)
-      const nextIndex = (currentIndex + 1) % sentence.remarks.length
-      const nextRemarkId = sentence.remarks[nextIndex].id
-
-      props.onEmphasizeRemark(nextRemarkId, sentenceId)
-      console.log("Next remark ID:", nextRemarkId)
-      return nextRemarkId
-    }
-    return null
-  }, [paragraphs, emphasizedRemarkIds, props.onEmphasizeRemark])
+    setIsDaggerClicked(false);
+  }, [props.onEmphasizeRemark, isDaggerClicked]);
 
   const scrollToMessage = useCallback((messageId: string) => {
     console.log("scrollToMessage called with messageId:", messageId);
@@ -1364,21 +1376,36 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   }, []);
 
   const handleRemarkClick = useCallback((sentenceId: string) => {
+    setIsDaggerClicked(true);
+    const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId);
     setIsDaggerClicked(true)
-    const nextRemarkId = cycleEmphasizedRemark(sentenceId);
-    if (nextRemarkId) {
-      onEmphasizeRemark(nextRemarkId, sentenceId);
-      // Find the remark text to pass to onRemarkHover
-      const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId);
-      const remark = sentence?.remarks.find(r => r.id === nextRemarkId);
-      if (remark) {
-        onRemarkHover(nextRemarkId, remark.text);
+    
+    if (sentence && sentence.remarks.length > 0) {
+      let nextRemarkIndex;
+      const currentRemarkId = emphasizedRemarkId;
+      const currentIndex = sentence.remarks.findIndex(r => r.id === currentRemarkId);
+      
+      if (currentIndex === -1 || currentIndex === sentence.remarks.length - 1) {
+        // If no remark is currently emphasized or we're at the last remark, start from the beginning
+        nextRemarkIndex = 0;
+      } else {
+        // Move to the next remark
+        nextRemarkIndex = currentIndex + 1;
       }
+
+      const nextRemark = sentence.remarks[nextRemarkIndex];
+      setEmphasizedRemarkId(nextRemark.id);
+      setEmphasizedSentenceId(sentenceId);
+      onEmphasizeRemark(nextRemark.id, sentenceId);
+      onRemarkHover(nextRemark.id, nextRemark.text);
     } else {
+      // If there are no remarks, clear the emphasis
+      setEmphasizedRemarkId(null);
+      setEmphasizedSentenceId(null);
       onEmphasizeRemark(null, null);
       onRemarkHover(null, null);
     }
-  }, [paragraphs, emphasizedRemarkIds, props.onEmphasizeRemark, props.onRemarkHover]);
+  }, [paragraphs, emphasizedRemarkId, onEmphasizeRemark, onRemarkHover, setEmphasizedRemarkId, setEmphasizedSentenceId]);
 
   // Add this new function
   const handleEmphasizeRemark = useCallback((remarkId: string | null, sentenceId: string | null) => {
@@ -1389,12 +1416,6 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     }
     props.onEmphasizeRemark(remarkId, sentenceId);
   }, [props.onEmphasizeRemark]);
-
-  // Expose the cycleEmphasizedRemark method through the ref
-  useImperativeHandle(ref, () => ({
-    cycleEmphasizedRemark,
-    // ... (other methods you want to expose)
-  }))
 
   const handleSentenceClick = useCallback((sentenceId: string, paragraphId: string, index: number, e: React.MouseEvent) => {
     const currentTime = new Date().getTime()
@@ -1546,7 +1567,6 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     handleNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => {
       onNewContent(text, 'ai', respondingToType, respondingToId);
     },
-    cycleEmphasizedRemark,
     addSentenceAfter,
     addParagraphAfterSentence,
   }));
@@ -1609,7 +1629,6 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
               onSentenceClick={handleSentenceClick}
               onEmphasizeRemark={handleEmphasizeRemark}
               onRemarkHover={props.onRemarkHover}
-              cycleEmphasizedRemark={cycleEmphasizedRemark}
               scrollToMessage={scrollToMessage}
               emphasizedRemarkIds={emphasizedRemarkIds}
             />
