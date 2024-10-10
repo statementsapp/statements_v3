@@ -4,13 +4,14 @@ import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperat
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { generateRandomSentence } from '../utils/sentenceGenerator' // You'll need to create this utility function
-import { Messenger, Message, MessengerProps } from './Messenger' // Update this import
+import { Message } from './Messenger' // Remove MessengerProps from this import
+import { Check } from 'lucide-react'
 
 type Remark = {
   id: string;
   text: string;
   sentenceId: string;
-  rejoined: boolean; // Add this line
+  rejoined: boolean;
 }
 
 type Sentence = {
@@ -50,7 +51,7 @@ type DragItem = {
 }
 
 const CursorSpace = React.forwardRef<
-  { resetContent: () => void },
+  HTMLSpanElement,
   {
     id: string
     onEnter: (text: string) => void
@@ -217,7 +218,7 @@ const CursorSpace = React.forwardRef<
             ) : (
               <span 
                 className="text-white inline-block" 
-                style={{ verticalAlign: 'top', fontSize: '0.8em' }}
+                style={{ verticalAlign: 'top', fontSize: '1em' }}
               >
                 †
               </span>
@@ -257,7 +258,23 @@ const SentenceComponent: React.FC<{
   onMouseEnter: () => void
   onMouseLeave: () => void
   onSentenceClick: (e: React.MouseEvent) => void
-}> = ({ sentence, onClick, isEditing, onInput, onSubmit, isDragging, onMouseEnter, onMouseLeave, onSentenceClick }) => {
+  onRemarkClick: (sentenceId: string) => void
+  onRemarkMouseEnter: (sentenceId: string) => void
+  onRemarkMouseLeave: () => void
+}> = ({ 
+  sentence, 
+  onClick, 
+  isEditing, 
+  onInput, 
+  onSubmit, 
+  isDragging, 
+  onMouseEnter, 
+  onMouseLeave, 
+  onSentenceClick,
+  onRemarkClick,
+  onRemarkMouseEnter,
+  onRemarkMouseLeave
+}) => {
   const ref = useRef<HTMLSpanElement>(null)
   const [localText, setLocalText] = useState(sentence.text)
   const [originalText, setOriginalText] = useState(sentence.text)
@@ -336,6 +353,11 @@ const SentenceComponent: React.FC<{
     }
   }, [])
 
+  const handleRemarkClick = (e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent the sentence click event from firing
+    onRemarkClick(sentence.id)
+  }
+
   return (
     <span
       ref={ref}
@@ -349,6 +371,7 @@ const SentenceComponent: React.FC<{
       onMouseLeave={onMouseLeave}
     >
       {localText}
+      {/* do not place a † here */}
     </span>
   )
 }
@@ -364,7 +387,10 @@ const DraggableSentence: React.FC<{
   onSubmit: (text: string) => void
   onMouseEnter: () => void
   onMouseLeave: () => void
-}> = ({ sentence, paragraphId, index, moveSentence, onClick, isEditing, onInput, onSubmit, onMouseEnter, onMouseLeave }) => {
+  onRemarkMouseEnter: (sentenceId: string) => void
+  onRemarkMouseLeave: () => void
+  onRemarkClick: (sentenceId: string) => void
+}> = ({ sentence, paragraphId, index, moveSentence, onClick, isEditing, onInput, onSubmit, onMouseEnter, onMouseLeave, onRemarkMouseEnter, onRemarkMouseLeave, onRemarkClick }) => {
   const ref = useRef<HTMLSpanElement>(null)
   const [{ isDragging }, drag] = useDrag({
     type: 'SENTENCE',
@@ -442,6 +468,9 @@ const DraggableSentence: React.FC<{
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         onSentenceClick={onClick}
+        onRemarkClick={onRemarkClick}
+        onRemarkMouseEnter={onRemarkMouseEnter}
+        onRemarkMouseLeave={onRemarkMouseLeave}
       />
     </span>
   )
@@ -529,7 +558,7 @@ const ParagraphSeparator: React.FC<{
         isLast={isLast}
         showSolidCursor={false}
         isSeparator={true}
-        ref={cursorSpaceRef}
+        ref={cursorSpaceRef as React.Ref<HTMLSpanElement>}
         isDisabled={isDisabled ?? false}
         onInput={() => {}}
         onReset={() => {}}
@@ -563,6 +592,11 @@ const ParagraphComponent: React.FC<{
   onRemarkMouseLeave: () => void
   onRemarkClick: (sentenceId: string) => void
   onSentenceClick: (sentenceId: string, paragraphId: string, index: number, e: React.MouseEvent) => void
+  onEmphasizeRemark: (remarkId: string | null, sentenceId: string | null) => void
+  onRemarkHover: (remarkId: string | null, remarkText: string | null) => void // Updated this prop
+  cycleEmphasizedRemark: (sentenceId: string) => string | null
+  scrollToMessage: (messageId: string) => void
+  emphasizedRemarkIds: { [sentenceId: string]: string }
 }> = ({ 
   paragraph, 
   updateParagraph, 
@@ -584,7 +618,12 @@ const ParagraphComponent: React.FC<{
   onRemarkMouseEnter,
   onRemarkMouseLeave,
   onRemarkClick,
-  onSentenceClick
+  onSentenceClick,
+  onEmphasizeRemark,
+  onRemarkHover,
+  cycleEmphasizedRemark,
+  scrollToMessage,
+  emphasizedRemarkIds
 }) => {
   const [lastClickedSentenceId, setLastClickedSentenceId] = useState<string | null>(null)
   const [lastClickTime, setLastClickTime] = useState<number>(0)
@@ -714,38 +753,16 @@ const ParagraphComponent: React.FC<{
     setIsEndingSpaceHovered(false)
   }
 
-  const handleRemarkMouseEnter = (index: number) => {
-    if (collapseTimeoutRef.current) {
-      clearTimeout(collapseTimeoutRef.current)
-      collapseTimeoutRef.current = null
-    }
-    setExpandedRemarkIndex(index)
-    setHoveredSentenceIndex(index)
-    setHoveredRemarkIndex(index)
-    setShowRemarkSolidCursor(true)
-    setKeepRemarkExpanded(true)
-    lastExpandedRemarkRef.current = index
-  }
-
-  const handleRemarkMouseLeave = () => {
-    setShowRemarkSolidCursor(false)
-    setHoveredRemarkIndex(null)
-    if (!keepRemarkExpanded) {
-      collapseTimeoutRef.current = setTimeout(() => {
-        setExpandedRemarkIndex(null)
-        setHoveredSentenceIndex(null)
-        lastExpandedRemarkRef.current = null
-      }, 500)
+  const handleRemarkMouseEnter = (sentenceId: string) => {
+    const sentence = paragraph.sentences.find(s => s.id === sentenceId)
+    if (sentence && sentence.remarks.length > 0) {
+      const mostRecentRemark = sentence.remarks[sentence.remarks.length - 1]
+      onEmphasizeRemark(mostRecentRemark.id, sentenceId)
     }
   }
 
-  const handleRemarkClick = (index: number) => {
-    // Always expand the remark when clicked
-    setShowRemarkSolidCursor(false)
-    setFocusedCursorSpaceId(`${paragraph.id}-${index}-remark`)
-    setKeepRemarkExpanded(true)
-    setEditingRemarkIndex(index)
-    setExpandedRemarkIndex(index)
+  const handleRemarkClick = (sentenceId: string) => {
+    onRemarkClick(sentenceId);
   }
 
   const handleDocumentClick = useCallback((e: MouseEvent) => {
@@ -840,6 +857,9 @@ const ParagraphComponent: React.FC<{
               onSubmit={(text) => handleSentenceSubmit(sentence.id, text, index)}
               onMouseEnter={() => mouseHasMoved && setHoveredSentenceIndex(index)}
               onMouseLeave={() => mouseHasMoved && setHoveredSentenceIndex(null)}
+              onRemarkMouseEnter={onRemarkMouseEnter}
+              onRemarkMouseLeave={onRemarkMouseLeave}
+              onRemarkClick={handleRemarkClick}
             />
             {/* Update this part to check if there are any unrejoined remarks */}
             {sentence.remarks.length > 0 && sentence.remarks.some(remark => !remark.rejoined) && (
@@ -847,8 +867,8 @@ const ParagraphComponent: React.FC<{
                 {' '}
                 <span 
                   className="text-white inline-block cursor-pointer" 
-                  style={{ verticalAlign: 'top', fontSize: '0.8em' }}
-                  onClick={() => onRemarkClick(sentence.id)}
+                  style={{ verticalAlign: 'top', fontSize: '1em' }}
+                  onClick={() => handleRemarkClick(sentence.id)}
                   onMouseEnter={() => onRemarkMouseEnter(sentence.id)}
                   onMouseLeave={onRemarkMouseLeave}
                 >
@@ -994,6 +1014,9 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
 
   const messageContainerRef = useRef<HTMLDivElement>(null);
 
+  // Add this new state variable
+  const [isDaggerClicked, setIsDaggerClicked] = useState(false)
+
   useImperativeHandle(ref, () => ({
     handleNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => {
       // Implement the logic for handling new responses here
@@ -1029,23 +1052,22 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     const newSentenceId = Date.now().toString()
     console.log('Sentence ID created:', newSentenceId)
     setParagraphs((prevParagraphs) => {
-      const newParagraphs = prevParagraphs.map(paragraph => {
-        if (paragraph.id === paragraphId) {
-          const newSentences = [...paragraph.sentences]
-          if (isReplacingRemark && index > 0) {
-            newSentences[index - 1] = { ...newSentences[index - 1], remarks: [], remarkColor: undefined }
-          }
-          newSentences.splice(index, 0, { 
-            id: newSentenceId, 
-            sentenceId: newSentenceId, // Add this line to set sentenceId
-            text, 
-            remarks: [], 
-            remarkColor: undefined 
-          })
-          return { ...paragraph, sentences: newSentences }
+      const newParagraphs = [...prevParagraphs]
+      const paragraphIndex = newParagraphs.findIndex(p => p.id === paragraphId)
+      if (paragraphIndex !== -1) {
+        const newSentences = [...newParagraphs[paragraphIndex].sentences]
+        if (isReplacingRemark && index > 0) {
+          newSentences[index - 1] = { ...newSentences[index - 1], remarks: [], remarkColor: undefined }
         }
-        return paragraph
-      })
+        newSentences.splice(index, 0, { 
+          id: newSentenceId, 
+          sentenceId: newSentenceId, // Add this line to set sentenceId
+          text, 
+          remarks: [], 
+          remarkColor: undefined 
+        })
+        newParagraphs[paragraphIndex] = { ...newParagraphs[paragraphIndex], sentences: newSentences }
+      }
       return newParagraphs
     })
     
@@ -1300,27 +1322,35 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId)
     if (sentence && sentence.remarks.length > 0) {
       const mostRecentRemark = sentence.remarks[sentence.remarks.length - 1]
-      onRemarkHover(mostRecentRemark.id, mostRecentRemark.text)
+      props.onEmphasizeRemark(mostRecentRemark.id, sentenceId)
     }
-  }, [paragraphs, onRemarkHover])
+  }, [paragraphs, props.onEmphasizeRemark])
 
   const handleRemarkMouseLeave = useCallback(() => {
-    onRemarkHover(null, null)
-  }, [onRemarkHover])
+    console.log("handleRemarkMouseLeave called")
+    if (!isDaggerClicked) {
+      props.onEmphasizeRemark(null, null)
+    }
+    // Reset the isDaggerClicked state for the next interaction
+    setIsDaggerClicked(false)
+  }, [props.onEmphasizeRemark, isDaggerClicked])
 
   const cycleEmphasizedRemark = useCallback((sentenceId: string) => {
+    console.log("cycleEmphasizedRemark called with sentenceId:", sentenceId)
     const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId)
+    console.log("Sentence:", sentence)
     if (sentence && sentence.remarks.length > 0) {
       const currentRemarkId = emphasizedRemarkIds[sentenceId]
       const currentIndex = sentence.remarks.findIndex(r => r.id === currentRemarkId)
       const nextIndex = (currentIndex + 1) % sentence.remarks.length
       const nextRemarkId = sentence.remarks[nextIndex].id
 
-      setEmphasizedRemarkIds(prev => ({ ...prev, [sentenceId]: nextRemarkId }))
+      props.onEmphasizeRemark(nextRemarkId, sentenceId)
+      console.log("Next remark ID:", nextRemarkId)
       return nextRemarkId
     }
     return null
-  }, [paragraphs, emphasizedRemarkIds])
+  }, [paragraphs, emphasizedRemarkIds, props.onEmphasizeRemark])
 
   const scrollToMessage = useCallback((messageId: string) => {
     console.log("scrollToMessage called with messageId:", messageId);
@@ -1334,14 +1364,31 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   }, []);
 
   const handleRemarkClick = useCallback((sentenceId: string) => {
+    setIsDaggerClicked(true)
     const nextRemarkId = cycleEmphasizedRemark(sentenceId);
-    console.log('Next remark ID:', nextRemarkId);
     if (nextRemarkId) {
-      props.onRemarkHover(nextRemarkId, null);
-      props.onEmphasizeRemark(nextRemarkId, sentenceId);
-      scrollToMessage(nextRemarkId);
+      onEmphasizeRemark(nextRemarkId, sentenceId);
+      // Find the remark text to pass to onRemarkHover
+      const sentence = paragraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId);
+      const remark = sentence?.remarks.find(r => r.id === nextRemarkId);
+      if (remark) {
+        onRemarkHover(nextRemarkId, remark.text);
+      }
+    } else {
+      onEmphasizeRemark(null, null);
+      onRemarkHover(null, null);
     }
-  }, [cycleEmphasizedRemark, scrollToMessage, props.onRemarkHover, props.onEmphasizeRemark]);
+  }, [paragraphs, emphasizedRemarkIds, props.onEmphasizeRemark, props.onRemarkHover]);
+
+  // Add this new function
+  const handleEmphasizeRemark = useCallback((remarkId: string | null, sentenceId: string | null) => {
+    if (sentenceId && remarkId) {
+      setEmphasizedRemarkIds(prev => ({ ...prev, [sentenceId]: remarkId }));
+    } else {
+      setEmphasizedRemarkIds({});
+    }
+    props.onEmphasizeRemark(remarkId, sentenceId);
+  }, [props.onEmphasizeRemark]);
 
   // Expose the cycleEmphasizedRemark method through the ref
   useImperativeHandle(ref, () => ({
@@ -1550,7 +1597,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
               paragraphIndex={index}
               moveSentence={moveSentence}
               newlyPlacedSentenceId={newlyPlacedSentence?.id ?? null}
-              onNewContent={onNewContent}
+              onNewContent={props.onNewContent}
               handleCursorSpaceEnter={handleCursorSpaceEnter}
               addRemark={addRemark}
               onCursorSpaceInput={handleCursorSpaceInput}
@@ -1560,6 +1607,11 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
               onRemarkMouseLeave={handleRemarkMouseLeave}
               onRemarkClick={handleRemarkClick}
               onSentenceClick={handleSentenceClick}
+              onEmphasizeRemark={handleEmphasizeRemark}
+              onRemarkHover={props.onRemarkHover}
+              cycleEmphasizedRemark={cycleEmphasizedRemark}
+              scrollToMessage={scrollToMessage}
+              emphasizedRemarkIds={emphasizedRemarkIds}
             />
           ))}
         </div>

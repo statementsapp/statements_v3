@@ -1,11 +1,14 @@
 import React, { useState, useCallback, useEffect } from 'react'
+import { Check } from 'lucide-react'
+import { motion } from 'framer-motion'
 
 export type Message = {
   id: string
   text: string
   sender: 'user' | 'ai'
   type: 'sentence' | 'remark'
-  sentenceId?: string // Change this to be optional
+  sentenceId?: string
+  rejoined?: boolean // This property indicates if a message (remark) has been rejoined
 }
 
 interface MessengerProps {
@@ -17,7 +20,7 @@ interface MessengerProps {
   inputRef: React.RefObject<HTMLInputElement>
   hoveredRemarkId: string | null
   emphasizedMessageId: string | null
-  emphasizedSentenceId: string | null // Add this prop
+  emphasizedSentenceId: string | null
   emphasizedSentenceType: 'sentence' | 'remark' | null
 }
 
@@ -30,25 +33,15 @@ export function Messenger({
   inputRef,
   hoveredRemarkId,
   emphasizedMessageId,
-  emphasizedSentenceId, // Add this prop
+  emphasizedSentenceId,
   emphasizedSentenceType,
 }: MessengerProps) {
   const [inputText, setInputText] = useState('')
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null)
 
-  // New useEffect to log new message IDs
-  useEffect(() => {
-    if (messages.length > 0) {
-      const latestMessage = messages[messages.length - 1];
-    }
-  }, [messages]);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (inputText.trim()) {
-      // console.log("emphasized message Id: ", emphasizedMessageId)
-      // console.log("emphasized sentence id: ", emphasizedSentenceId)
-      // console.log("emphasized sentence type: ", emphasizedSentenceType)
       onNewMessage(inputText.trim(), emphasizedSentenceId, emphasizedMessageId, emphasizedSentenceType)
       setInputText('')
     }
@@ -93,7 +86,18 @@ export function Messenger({
             onMouseEnter={() => setHoveredMessageId(message.id)}
             onMouseLeave={() => setHoveredMessageId(null)}
           >
-            {message.text}
+            <div className="flex items-center justify-between">
+              <span>{message.text}</span>
+              {message.type === 'remark' && message.rejoined && (
+                <motion.div
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                >
+                  <Check className="h-4 w-4 text-gray-400 ml-2" />
+                </motion.div>
+              )}
+            </div>
           </div>
         ))}
       </div>
