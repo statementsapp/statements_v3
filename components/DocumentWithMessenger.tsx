@@ -35,10 +35,9 @@ export default function DocumentWithMessenger({
   )
 
   const handleNewMessage = useCallback(
-    (text: string, emphasizedSentenceId: string | null, emphasizedMessageId: string | null, emphasizedType: 'sentence' | 'remark' | null) => {
+    (text: string, emphasizedMessageId: string | null, emphasizedType: 'sentence' | 'remark' | null) => {
       console.log('handleNewMessage called with:', {
         text,
-        emphasizedSentenceId,
         emphasizedMessageId,
         emphasizedType
       });
@@ -46,27 +45,31 @@ export default function DocumentWithMessenger({
       if (documentRef.current) {
         const newSentenceId = `sentence-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-        if (emphasizedType === 'sentence' && emphasizedSentenceId) {
-          console.log("addSentenceAfter with:", emphasizedSentenceId, text, newSentenceId)
-          documentRef.current.addSentenceAfter(emphasizedSentenceId, text, newSentenceId);
-        } else if (emphasizedType === 'remark' && emphasizedSentenceId) {
-          console.log('addParagraphAfterSentence with:', emphasizedSentenceId, text, emphasizedMessageId, newSentenceId);
-          documentRef.current.addParagraphAfterSentence(emphasizedSentenceId, text, emphasizedMessageId, newSentenceId);
-          
-          // Update the rejoined status of the remark
-          if (emphasizedMessageId) {
+        if (emphasizedType === 'sentence' && emphasizedMessageId) {
+          console.log("addSentenceAfter with:", emphasizedMessageId, text, newSentenceId)
+          documentRef.current.addSentenceAfter(emphasizedMessageId, text, newSentenceId);
+        } else if (emphasizedType === 'remark' && emphasizedMessageId) {
+          // Find the message that corresponds to the emphasized remark
+          const emphasizedMessage = messages.find(m => m.id === emphasizedMessageId);
+          if (emphasizedMessage && emphasizedMessage.sentenceId) {
+            console.log('addParagraphAfterSentence with:', emphasizedMessage.sentenceId, text, emphasizedMessageId, newSentenceId);
+            documentRef.current.addParagraphAfterSentence(emphasizedMessage.sentenceId, text, emphasizedMessageId, newSentenceId);
+            
+            // Update the rejoined status of the remark
             setMessages(prevMessages => prevMessages.map(msg => 
               msg.id === emphasizedMessageId ? { ...msg, rejoined: true } : msg
             ))
+          } else {
+            console.error('Could not find the corresponding sentence for the remark');
           }
         } else {
-          console.log('ELSE addParagraphAfterSentence with:', emphasizedSentenceId, text, newSentenceId);
-          documentRef.current.addParagraphAfterSentence(emphasizedSentenceId, text, undefined, newSentenceId);
+          console.log('ELSE addParagraphAfterSentence with:', emphasizedMessageId, text, newSentenceId);
+          documentRef.current.addParagraphAfterSentence(emphasizedMessageId, text, undefined, newSentenceId);
         }
 
         handleNewContent(text, 'user', 'sentence', newSentenceId);
         
-        // Reset emphasis after adding new content
+        // Reset emphasis and selection after adding new content
         setEmphasizedMessageId(null);
         setSelectedMessageId(null);
         setSelectedMessageType(null);
@@ -76,7 +79,7 @@ export default function DocumentWithMessenger({
         console.error('documentRef is not available');
       }
     },
-    [handleNewContent]
+    [documentRef, handleNewContent, messages, setMessages, setEmphasizedMessageId, setSelectedMessageId, setSelectedMessageType]
   )
 
   const handleNewResponse = useCallback(
@@ -140,6 +143,8 @@ export default function DocumentWithMessenger({
 
   const handleEmphasizeRemark = useCallback((remarkId: string | null, sentenceId: string | null) => {
     setEmphasizedMessageId(remarkId);
+    setSelectedMessageId(remarkId);
+    setSelectedMessageType(remarkId ? 'remark' : null);
     // Scroll to the emphasized remark in the Messenger component
     const messageElement = document.querySelector(`[data-message-id="${remarkId}"]`);
     if (messageElement) {
@@ -153,6 +158,9 @@ export default function DocumentWithMessenger({
       console.log('Next remark ID:', nextRemarkId);
       if (nextRemarkId) {
         handleEmphasizeRemark(nextRemarkId, sentenceId);
+        // Update selectedMessageId and selectedMessageType
+        setSelectedMessageId(nextRemarkId);
+        setSelectedMessageType('remark');
         if (inputRef.current) {
           inputRef.current.focus();
         }
@@ -207,7 +215,7 @@ export default function DocumentWithMessenger({
         <div className="w-1/3 p-6 bg-black flex flex-col overflow-hidden">
           <Messenger
             messages={messages}
-            onNewMessage={(text) => handleNewMessage(text, emphasizedMessageId, selectedMessageType)}
+            onNewMessage={handleNewMessage}
             onMessageClick={handleMessageClickInternal}
             selectedMessageId={selectedMessageId}
             selectedMessageType={selectedMessageType}

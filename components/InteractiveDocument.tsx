@@ -1567,8 +1567,8 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     
     // Add remarks after 2 seconds and 5 seconds
     console.log("E")
-    setTimeout(() => addRemark(newSentenceId), 2000);
-    setTimeout(() => addRemark(newSentenceId), 5000);
+    setTimeout(() => addRemark(newSentenceId!), 2000);
+    setTimeout(() => addRemark(newSentenceId!), 5000);
 
     // Set the cursor after the new sentence
     setTimeout(() => {

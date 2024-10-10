@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { Check } from 'lucide-react'
 import { motion } from 'framer-motion'
 
@@ -17,7 +17,7 @@ interface MessengerProps {
   onMessageClick: (messageId: string, type: 'sentence' | 'remark') => void
   selectedMessageId: string | null
   selectedMessageType: 'sentence' | 'remark' | null
-  inputRef: React.RefObject<HTMLInputElement>
+  inputRef: React.RefObject<HTMLTextAreaElement>
   hoveredRemarkId: string | null
   emphasizedMessageId: string | null
 }
@@ -34,12 +34,16 @@ export function Messenger({
 }: MessengerProps) {
   const [inputText, setInputText] = useState('')
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (inputText.trim()) {
-      onNewMessage(inputText.trim(), emphasizedMessageId, selectedMessageType)
+      onNewMessage(inputText.trim(), selectedMessageId, selectedMessageType)
       setInputText('')
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto'
+      }
     }
   }
 
@@ -54,6 +58,19 @@ export function Messenger({
 
   const shouldDimMessage = (messageId: string, rejoined: boolean) =>
     rejoined || (emphasizedMessageId !== null && !isMessageEmphasized(messageId, rejoined))
+
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputText(e.target.value)
+    e.target.style.height = 'auto'
+    e.target.style.height = `${e.target.scrollHeight}px`
+  }
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
+    }
+  }, [inputText])
 
   return (
     <div className="flex flex-col h-full messenger-container">
@@ -100,12 +117,24 @@ export function Messenger({
       </div>
       <div className="flex-shrink-0 sticky bottom-0 bg-black pt-2 pb-4">
         <form onSubmit={handleSubmit} className="flex">
-          <input
-            ref={inputRef}
-            type="text"
+          <textarea
+            ref={(el) => {
+              textareaRef.current = el
+              if (inputRef) {
+                inputRef.current = el
+              }
+            }}
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            className="flex-grow bg-gray-800 text-white border border-gray-700 rounded p-2"
+            onChange={handleTextareaChange}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleSubmit(e)
+              }
+            }}
+            className="flex-grow bg-gray-800 text-white border border-gray-700 rounded p-2 resize-none overflow-hidden"
+            style={{ minHeight: '40px', maxHeight: '200px' }}
+            rows={1}
           />
         </form>
       </div>
