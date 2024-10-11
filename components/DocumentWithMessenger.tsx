@@ -20,13 +20,14 @@ export default function DocumentWithMessenger({
   const [emphasizedMessageId, setEmphasizedMessageId] = useState<string | null>(null)
 
   const handleNewContent = useCallback(
-    (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string, sentenceId?: string) => {
+    (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string, sentenceId?: string, shouldScroll: boolean = false) => {
       const newMessage: Message = {
         id,
         text,
         sender,
         type,
         sentenceId: type === 'remark' ? sentenceId : id,
+        shouldScroll,
       }
       setMessages((prevMessages) => [...prevMessages, newMessage])
       console.log('New message added:', newMessage)
@@ -67,7 +68,7 @@ export default function DocumentWithMessenger({
           documentRef.current.addParagraphAfterSentence(emphasizedMessageId, text, undefined, newSentenceId);
         }
 
-        handleNewContent(text, 'user', 'sentence', newSentenceId);
+        handleNewContent(text, 'user', 'sentence', newSentenceId, undefined, true);  // Set shouldScroll to true
         
         // Reset emphasis and selection after adding new content
         setEmphasizedMessageId(null);

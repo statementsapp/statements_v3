@@ -9,6 +9,7 @@ export type Message = {
   type: 'sentence' | 'remark'
   sentenceId?: string
   rejoined?: boolean
+  shouldScroll?: boolean  // New flag to indicate if we should scroll to this message
 }
 
 interface MessengerProps {
@@ -35,6 +36,8 @@ export function Messenger({
   const [inputText, setInputText] = useState('')
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const messageContainerRef = useRef<HTMLDivElement>(null)
+  const lastMessageRef = useRef<HTMLDivElement>(null)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,22 +66,53 @@ export function Messenger({
     setInputText(e.target.value)
     e.target.style.height = 'auto'
     e.target.style.height = `${e.target.scrollHeight}px`
+    adjustScroll()
   }
+
+  const adjustScroll = useCallback(() => {
+    if (messageContainerRef.current && textareaRef.current && emphasizedMessageId) {
+      const emphasizedMessage = messageContainerRef.current.querySelector(`[data-message-id="${emphasizedMessageId}"]`)
+      if (emphasizedMessage) {
+        const containerRect = messageContainerRef.current.getBoundingClientRect()
+        const messageRect = emphasizedMessage.getBoundingClientRect()
+        const textareaRect = textareaRef.current.getBoundingClientRect()
+
+        if (messageRect.bottom > containerRect.bottom - textareaRect.height) {
+          const scrollAmount = messageRect.bottom - (containerRect.bottom - textareaRect.height) + 20 // 20px extra for padding
+          messageContainerRef.current.scrollTop += scrollAmount
+        }
+      }
+    }
+  }, [emphasizedMessageId])
 
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
+      adjustScroll()
     }
-  }, [inputText])
+  }, [inputText, adjustScroll])
+
+  useEffect(() => {
+    adjustScroll()
+  }, [emphasizedMessageId, adjustScroll])
+
+  // New useEffect to scroll to the latest message if it should be scrolled to
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1]
+    if (lastMessage && lastMessage.shouldScroll && lastMessageRef.current) {
+      lastMessageRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
+  }, [messages])
 
   return (
     <div className="flex flex-col h-full messenger-container">
-      <div className="flex-grow overflow-auto pb-4">
+      <div ref={messageContainerRef} className="flex-grow overflow-auto pb-4">
         {messages.map((message, index) => (
           <div
             key={`${message.id}-${index}`}
             data-message-id={message.id}
+            ref={index === messages.length - 1 ? lastMessageRef : null}
             className={`p-2 mb-2 rounded transition-all duration-200 ${
               message.sender === 'user' ? 'bg-gray-800 ml-auto' : 'bg-gray-700'
             } ${
