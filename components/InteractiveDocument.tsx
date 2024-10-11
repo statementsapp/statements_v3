@@ -98,25 +98,12 @@ const CursorSpace = React.forwardRef<
   onReset,
   content
 }, ref) => {
-  const [text, setText] = useState(content)
   const inputRef = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
-    setText(content)
-    // Move cursor to the end of the content when it changes
     if (inputRef.current) {
-      const range = document.createRange()
-      const sel = window.getSelection()
-      range.selectNodeContents(inputRef.current)
-      range.collapse(false) // This collapses the range to the end
-      sel?.removeAllRanges()
-      sel?.addRange(range)
-    }
-  }, [content])
-
-  useEffect(() => {
-    if (isFocused && inputRef.current) {
-      inputRef.current.focus()
+      inputRef.current.textContent = content;
+      // Move cursor to the end of the content
       const range = document.createRange()
       const sel = window.getSelection()
       range.selectNodeContents(inputRef.current)
@@ -124,24 +111,27 @@ const CursorSpace = React.forwardRef<
       sel?.removeAllRanges()
       sel?.addRange(range)
     }
-  }, [isFocused])
+  }, [content])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLSpanElement>) => {
-    if (e.key === 'Enter' && text.trim() !== '') {
+    if (e.key === 'Enter' && content.trim() !== '') {
       e.preventDefault()
-      onEnter(text)
-      setText('')
+      onEnter(content)
+      if (inputRef.current) {
+        inputRef.current.textContent = ''
+      }
     }
   }
 
   const handleInput = (e: React.FormEvent<HTMLSpanElement>) => {
     const newText = e.currentTarget.textContent || ''
-    setText(newText)
     onInput(newText)
   }
 
   const resetContent = () => {
-    setText('')
+    if (inputRef.current) {
+      inputRef.current.textContent = ''
+    }
     onReset()
   }
 
@@ -157,22 +147,21 @@ const CursorSpace = React.forwardRef<
       onMouseLeave={onMouseLeave}
       onClick={onClick}
     >
-      {!isRemarkCursor && (
-        <span
-          ref={inputRef}
-          contentEditable={!isDisabled}
-          suppressContentEditableWarning
-          className={`inline-block min-w-[1ch] outline-none ${
-            isFocused ? 'bg-transparent' : ''
-          } ${isSeparator ? 'w-full' : ''} pl-[0.3em]`}
-          onInput={handleInput}
-          onKeyDown={handleKeyDown}
-          onFocus={onFocus}
-        >
-          {text}
-        </span>
-      )}
-      {/* Remove the solid cursor here */}
+      <span
+        ref={inputRef}
+        contentEditable={!isDisabled}
+        suppressContentEditableWarning
+        spellCheck={false}
+        className={`inline-block min-w-[1ch] outline-none ${
+          isFocused ? 'bg-transparent' : ''
+        } ${isSeparator ? 'w-full' : ''} pl-[0.3em]`}
+        onInput={handleInput}
+        onKeyDown={handleKeyDown}
+        onFocus={onFocus}
+      >
+        {content}
+      </span>
+      {showSolidCursor && !isFocused && <span className="cursor">|</span>}
     </span>
   )
 })
@@ -416,8 +405,8 @@ const ParagraphSeparator: React.FC<{
   isDisabled?: boolean
 }> = React.memo(({ id, onEnter, onFocus, isFocused, isLast, isDisabled }) => {
   const [isHovered, setIsHovered] = useState(false)
-  const separatorRef = useRef<HTMLDivElement>(null)
-  const cursorSpaceRef = useRef<HTMLSpanElement>(null)
+  const [text, setText] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const handleMouseEnter = () => {
     if (!isFocused) {
@@ -434,38 +423,40 @@ const ParagraphSeparator: React.FC<{
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault()
     onFocus()
+    inputRef.current?.focus()
   }
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (separatorRef.current && !separatorRef.current.contains(event.target as Node)) {
-        // This will collapse the separator and remove the hover state when clicking outside
-        setIsHovered(false)
-      }
+    if (isFocused && inputRef.current) {
+      inputRef.current.focus()
     }
+  }, [isFocused])
 
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [])
-
-  // Reset hover state when focus is lost
   useEffect(() => {
     if (!isFocused) {
       setIsHovered(false)
     }
   }, [isFocused])
 
-  const handleEnter = (text: string) => {
-    if (text.trim()) {
-      onEnter(text);
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setText(e.target.value)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && text.trim() !== '') {
+      e.preventDefault()
+      onEnter(text)
+      setText('')
     }
-  };
+  }
+
+  // Add this new function to handle blur events
+  const handleBlur = () => {
+    setText('')
+  }
 
   return (
     <div 
-      ref={separatorRef}
       className={`w-full relative flex items-center cursor-text transition-all duration-300 ease-in-out ${
         isFocused ? 'h-8 mt-[1px] mb-[1px]' : 'h-1 my-[1px]'
       }`}
@@ -480,20 +471,19 @@ const ParagraphSeparator: React.FC<{
           }`} 
         />
       )}
-      <CursorSpace
-        id={id}
-        onEnter={handleEnter}
-        onFocus={onFocus}
-        isFocused={isFocused}
-        isFirst={true}
-        isLast={isLast}
-        showSolidCursor={false}
-        isSeparator={true}
-        ref={cursorSpaceRef as React.Ref<HTMLSpanElement>}
-        isDisabled={isDisabled ?? false}
-        onInput={() => {}}
-        onReset={() => {}}
-        content=""
+      <input
+        ref={inputRef}
+        type="text"
+        value={text}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        onBlur={handleBlur} // Add this line
+        disabled={isDisabled}
+        spellCheck={false} // Add this line
+        className={`w-full bg-transparent outline-none ${
+          isFocused ? 'opacity-100' : 'opacity-0'
+        } pl-[0.3em]`}
+        style={{ caretColor: isFocused ? 'auto' : 'transparent' }}
       />
     </div>
   )
@@ -503,7 +493,7 @@ ParagraphSeparator.displayName = 'ParagraphSeparator'
 
 // Removed 'isFirst' from ParagraphComponent props
 const ParagraphComponent: React.FC<{
-  paragraph: Paragraph
+  paragraph: Paragraph | null
   updateParagraph: (updatedParagraph: Paragraph) => void
   editingSentenceId: string | null
   setEditingSentenceId: (id: string | null) => void
@@ -529,6 +519,12 @@ const ParagraphComponent: React.FC<{
   scrollToMessage: (messageId: string) => void
   emphasizedRemarkIds: { [sentenceId: string]: string }
   cursorSpaceContent: { [key: string]: string } // Add this prop
+  showCursor: boolean
+  isInitialLoad: boolean
+  handleSeparatorEnter: (text: string, index: number) => void
+  automatedTypingText: string
+  isAutomatedTyping: boolean
+  paragraphs: Paragraph[]
 }> = ({ 
   paragraph, 
   updateParagraph, 
@@ -555,7 +551,13 @@ const ParagraphComponent: React.FC<{
   onRemarkHover,
   scrollToMessage,
   emphasizedRemarkIds,
-  cursorSpaceContent // Add this prop
+  cursorSpaceContent, // Add this prop
+  showCursor,
+  isInitialLoad,
+  handleSeparatorEnter,
+  automatedTypingText,
+  isAutomatedTyping,
+  paragraphs
 }) => {
   const [lastClickedSentenceId, setLastClickedSentenceId] = useState<string | null>(null)
   const [lastClickTime, setLastClickTime] = useState<number>(0)
@@ -625,18 +627,6 @@ const ParagraphComponent: React.FC<{
         (newCursorSpace as HTMLElement).focus();
       }
     }, 0);
-  }
-
-  const handleSeparatorEnter = (text: string, position: 'before' | 'after') => {
-    const now = Date.now()
-    if (now - lastSeparatorEnterRef.current < 500) {
-      return
-    }
-    lastSeparatorEnterRef.current = now
-    const index = position === 'before' ? paragraphIndex : paragraphIndex + 1
-    const { paragraphId, sentenceId } = addParagraph(index, text)
-    setFocusedCursorSpaceId(`${paragraphId}-0`)
-    // Remove the onNewContent call from here, as it's already called in addParagraph
   }
 
   const handleParagraphClick = (e: React.MouseEvent) => {
@@ -724,16 +714,27 @@ const ParagraphComponent: React.FC<{
 
   // Add this useEffect to focus the correct cursor space
   useEffect(() => {
-    if (focusedCursorSpaceId) {
-      const cursorSpace = document.getElementById(focusedCursorSpaceId)
+    if (focusedCursorSpaceId && focusedCursorSpaceId.startsWith(paragraph.id)) {
+      const cursorSpace = document.getElementById(focusedCursorSpaceId);
       if (cursorSpace) {
-        const contentEditableSpan = cursorSpace.querySelector('span[contenteditable]')
+        const contentEditableSpan = cursorSpace.querySelector('span[contenteditable]');
         if (contentEditableSpan) {
-          (contentEditableSpan as HTMLElement).focus()
+          (contentEditableSpan as HTMLElement).focus();
+          // Place the cursor at the end of the content
+          const range = document.createRange();
+          const sel = window.getSelection();
+          range.selectNodeContents(contentEditableSpan);
+          range.collapse(false);
+          sel?.removeAllRanges();
+          sel?.addRange(range);
         }
       }
     }
-  }, [focusedCursorSpaceId])
+  }, [focusedCursorSpaceId, paragraph.id]);
+
+  if (!paragraph) {
+    return null; // Return null if paragraph is undefined or null
+  }
 
   return (
     <>
@@ -748,7 +749,7 @@ const ParagraphComponent: React.FC<{
           isFocused={focusedCursorSpaceId === `${paragraph.id}-start`}
           isFirst={true}
           isLast={paragraph.sentences.length === 0}
-          showSolidCursor={isFirstCursorSpaceHovered}
+          showSolidCursor={!isInitialLoad && isFirstCursorSpaceHovered}
           onMouseEnter={() => setIsFirstCursorSpaceHovered(true)}
           onMouseLeave={() => setIsFirstCursorSpaceHovered(false)}
           isDisabled={newlyPlacedSentenceId !== null}
@@ -795,7 +796,7 @@ const ParagraphComponent: React.FC<{
               isFocused={focusedCursorSpaceId === `${paragraph.id}-${index}`}
               isFirst={false}
               isLast={index === paragraph.sentences.length - 1}
-              showSolidCursor={false} // Always set this to false
+              showSolidCursor={!isInitialLoad && showCursor && focusedCursorSpaceId === `${paragraph.id}-${index}`}
               onMouseEnter={() => {}} // Empty function
               onMouseLeave={() => {}} // Empty function
               isDisabled={newlyPlacedSentenceId !== null}
@@ -807,31 +808,27 @@ const ParagraphComponent: React.FC<{
                 }
               }}
               content={cursorSpaceContent[`${paragraph.id}-${index}`] || ''}
+              showCursor={showCursor}
             />
             {/* Add a space after each sentence except the last one */}
             {index < paragraph.sentences.length - 1 && ' '}
           </React.Fragment>
         ))}
+        {isAutomatedTyping && paragraph && paragraph.id === paragraphs[paragraphs.length - 1].id && (
+          <span className="automated-typing">
+            {automatedTypingText}
+            <span className="cursor">|</span>
+          </span>
+        )}
       </p>
-      <ParagraphSeparator
+      {/* <ParagraphSeparator
         id={`separator-after-${paragraph.id}`}
-        onEnter={(text) => {
-          handleSeparatorEnter(text, 'after')
-          onNewContent(text, 'user', 'sentence', Date.now().toString())
-        }}
-        onFocus={() => {
-          setFocusedCursorSpaceId(`separator-after-${paragraph.id}`)
-          // Reset all other cursor spaces
-          Object.entries(cursorSpaceRefs.current).forEach(([id, ref]) => {
-            if (id !== `separator-after-${paragraph.id}`) {
-              ref.resetContent()
-            }
-          })
-        }}
+        onEnter={(text) => handleSeparatorEnter(text, paragraphIndex + 1)}
+        onFocus={() => setFocusedCursorSpaceId(`separator-after-${paragraph.id}`)}
         isFocused={focusedCursorSpaceId === `separator-after-${paragraph.id}`}
         isLast={isLast}
         isDisabled={newlyPlacedSentenceId !== null}
-      />
+      /> */}
     </>
   )
 }
@@ -910,6 +907,13 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   const [emphasizedSentenceId, setEmphasizedSentenceId] = useState<string | null>(null);
 
   const [isFirstClick, setIsFirstClick] = useState(true);
+
+  const [showCursor, setShowCursor] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // Add this near the top of the InteractiveDocument component
+  const [automatedTypingText, setAutomatedTypingText] = useState<string>('');
+  const [isAutomatedTyping, setIsAutomatedTyping] = useState<boolean>(false);
 
   useImperativeHandle(ref, () => ({
     handleNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => {
@@ -1465,6 +1469,44 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     return newSentenceId;
   }, [paragraphs, addRemark, setFocusedCursorSpaceId]);
 
+  const handleSeparatorEnter = useCallback((text: string, index: number) => {
+    const { paragraphId, sentenceId } = addParagraph(index, text);
+    
+    // Focus on the cursor space after the new sentence
+    const newCursorSpaceId = `${paragraphId}-0`;
+    setFocusedCursorSpaceId(newCursorSpaceId);
+    
+    props.onNewContent(text, 'user', 'sentence', sentenceId);
+    
+    // Clear the separator's content after adding the paragraph
+    const separatorId = `separator-after-${paragraphs[index - 1]?.id || 'first'}`;
+    const separatorElement = document.getElementById(separatorId);
+    if (separatorElement) {
+      const contentEditableSpan = separatorElement.querySelector('span[contenteditable]');
+      if (contentEditableSpan) {
+        contentEditableSpan.textContent = '';
+      }
+    }
+    
+    // Focus the cursor space after the new sentence
+    setTimeout(() => {
+      const cursorSpace = document.getElementById(newCursorSpaceId);
+      if (cursorSpace) {
+        const contentEditableSpan = cursorSpace.querySelector('span[contenteditable]');
+        if (contentEditableSpan) {
+          (contentEditableSpan as HTMLElement).focus();
+          // Place the cursor at the end of the content
+          const range = document.createRange();
+          const sel = window.getSelection();
+          range.selectNodeContents(contentEditableSpan);
+          range.collapse(false);
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }
+      }
+    }, 0);
+  }, [addParagraph, setFocusedCursorSpaceId, props.onNewContent, paragraphs]);
+
   // Update the useImperativeHandle hook
   useImperativeHandle(ref, () => ({
     handleNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => {
@@ -1474,63 +1516,60 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     addParagraphAfterSentence,
   }));
 
+  // Update the performAutomatedActions function
   const performAutomatedActions = useCallback(() => {
-    const lastParagraph = paragraphs[paragraphs.length - 1];
-    const lastSentence = lastParagraph.sentences[lastParagraph.sentences.length - 1];
-    const lastCursorSpaceId = `${lastParagraph.id}-${lastParagraph.sentences.length - 1}`;
-
-    // Click the last sentence
-    handleSentenceClick(lastSentence.id, lastParagraph.id, lastParagraph.sentences.length - 1, new MouseEvent('click') as any);
-
-    // Type the new sentence one character at a time
     const newSentence = "That the life of Man is but a dream has been sensed by many a one, and I too am never free of the feeling.";
     let index = 0;
 
+    setIsAutomatedTyping(true);
+    setAutomatedTypingText('');
+
     const typeCharacter = () => {
       if (index < newSentence.length) {
-        const newContent = newSentence.slice(0, index + 1);
-        handleCursorSpaceInput(lastCursorSpaceId, newContent);
-        setCursorSpaceContent(prev => ({
-          ...prev,
-          [lastCursorSpaceId]: newContent
-        }));
+        setAutomatedTypingText(newSentence.slice(0, index + 1));
         index++;
-        
-        // Move cursor to the end after each character is typed
-        setTimeout(() => {
-          const cursorSpace = document.getElementById(lastCursorSpaceId);
-          if (cursorSpace) {
-            const range = document.createRange();
-            const sel = window.getSelection();
-            range.selectNodeContents(cursorSpace);
-            range.collapse(false);
-            sel?.removeAllRanges();
-            sel?.addRange(range);
-          }
-        }, 0);
-        
-        requestAnimationFrame(typeCharacter);
+        setTimeout(typeCharacter, 50);
       } else {
-        // Commit the sentence
-        handleCursorSpaceEnter(newSentence, lastParagraph.id, lastParagraph.sentences.length);
-        
-        // Clear the cursor space input
-        handleCursorSpaceInput(lastCursorSpaceId, '');
-        setCursorSpaceContent(prev => ({
-          ...prev,
-          [lastCursorSpaceId]: ''
-        }));
-        
-        // Reset the focused cursor space
-        setFocusedCursorSpaceId(null);
+        setTimeout(() => {
+          const lastParagraph = paragraphs[paragraphs.length - 1];
+          handleCursorSpaceEnter(newSentence, lastParagraph.id, lastParagraph.sentences.length, false);
+          setAutomatedTypingText('');
+          setIsAutomatedTyping(false);
+        }, 500);
       }
     };
 
-    // Focus on the last cursor space before starting to type
-    setFocusedCursorSpaceId(lastCursorSpaceId);
+    setTimeout(typeCharacter, 500);
+  }, [paragraphs, handleCursorSpaceEnter]);
 
-    setTimeout(typeCharacter, 500); // Start typing after a short delay
-  }, [paragraphs, handleSentenceClick, handleCursorSpaceInput, handleCursorSpaceEnter, setFocusedCursorSpaceId, setCursorSpaceContent]);
+  useEffect(() => {
+    if (isInitialLoad) {
+      setIsInitialLoad(false);
+      return;
+    }
+
+    if (focusedCursorSpaceId) {
+      const cursorSpace = document.getElementById(focusedCursorSpaceId);
+      if (cursorSpace) {
+        const contentEditableSpan = cursorSpace.querySelector('span[contenteditable]');
+        if (contentEditableSpan) {
+          (contentEditableSpan as HTMLElement).focus();
+        }
+      }
+    }
+  }, [focusedCursorSpaceId, isInitialLoad]);
+
+  useEffect(() => {
+    if (focusedCursorSpaceId) {
+      const cursorSpace = document.getElementById(focusedCursorSpaceId.split('-force-update')[0]);
+      if (cursorSpace) {
+        const contentEditableSpan = cursorSpace.querySelector('span[contenteditable]');
+        if (contentEditableSpan) {
+          contentEditableSpan.textContent = cursorSpaceContent[focusedCursorSpaceId.split('-force-update')[0]] || '';
+        }
+      }
+    }
+  }, [focusedCursorSpaceId, cursorSpaceContent]);
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -1551,7 +1590,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
           <h1
             className="text-3xl font-bold mb-4"
             contentEditable
-            spellCheck={false}
+            spellCheck={false} // Add this line
             suppressContentEditableWarning
             onBlur={(e) => setTitle(e.currentTarget.textContent || '')}
           >
@@ -1560,12 +1599,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
 
           <ParagraphSeparator
             id={`separator-before-first`}
-            onEnter={(text) => {
-              const { paragraphId, sentenceId } = addParagraph(0, text);
-              setFocusedCursorSpaceId(`${paragraphId}-0`);
-              // Call onNewContent here instead
-              props.onNewContent(text, 'user', 'sentence', sentenceId);
-            }}
+            onEnter={(text) => handleSeparatorEnter(text, 0)}
             onFocus={() => setFocusedCursorSpaceId(`separator-before-first`)}
             isFocused={focusedCursorSpaceId === `separator-before-first`}
             isLast={false}
@@ -1573,35 +1607,53 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
           />
 
           {paragraphs.map((paragraph, index) => (
-            <ParagraphComponent
-              key={paragraph.id}
-              paragraph={paragraph}
-              updateParagraph={updateParagraph}
-              editingSentenceId={editingSentenceId}
-              setEditingSentenceId={setEditingSentenceId}
-              focusedCursorSpaceId={focusedCursorSpaceId}
-              setFocusedCursorSpaceId={setFocusedCursorSpaceId}
-              isLast={index === paragraphs.length - 1}
-              addParagraph={addParagraph}
-              paragraphIndex={index}
-              moveSentence={moveSentence}
-              newlyPlacedSentenceId={newlyPlacedSentence?.id ?? null}
-              onNewContent={props.onNewContent}
-              handleCursorSpaceEnter={handleCursorSpaceEnter}
-              addRemark={addRemark}
-              onCursorSpaceInput={handleCursorSpaceInput}
-              onCursorSpaceReset={handleCursorSpaceReset}
-              cursorSpaceRefs={cursorSpaceRefs}
-              onRemarkMouseEnter={handleRemarkMouseEnter}
-              onRemarkMouseLeave={handleRemarkMouseLeave}
-              onRemarkClick={handleRemarkClick}
-              onSentenceClick={handleSentenceClick}
-              onEmphasizeRemark={handleEmphasizeRemark}
-              onRemarkHover={props.onRemarkHover}
-              scrollToMessage={scrollToMessage}
-              emphasizedRemarkIds={emphasizedRemarkIds}
-              cursorSpaceContent={cursorSpaceContent} // Pass this prop
-            />
+            <React.Fragment key={paragraph ? paragraph.id : `empty-${index}`}>
+              <ParagraphComponent
+                paragraph={paragraph}
+                paragraphs={paragraphs} // Add this line
+                paragraphIndex={index}
+                updateParagraph={updateParagraph}
+                editingSentenceId={editingSentenceId}
+                setEditingSentenceId={setEditingSentenceId}
+                focusedCursorSpaceId={focusedCursorSpaceId}
+                setFocusedCursorSpaceId={setFocusedCursorSpaceId}
+                isLast={index === paragraphs.length - 1}
+                addParagraph={addParagraph}
+                moveSentence={moveSentence}
+                newlyPlacedSentenceId={newlyPlacedSentence?.id ?? null}
+                onNewContent={props.onNewContent}
+                handleCursorSpaceEnter={handleCursorSpaceEnter}
+                addRemark={addRemark}
+                onCursorSpaceInput={handleCursorSpaceInput}
+                onCursorSpaceReset={handleCursorSpaceReset}
+                cursorSpaceRefs={cursorSpaceRefs}
+                onRemarkMouseEnter={handleRemarkMouseEnter}
+                onRemarkMouseLeave={handleRemarkMouseLeave}
+                onRemarkClick={handleRemarkClick}
+                onSentenceClick={handleSentenceClick}
+                onEmphasizeRemark={handleEmphasizeRemark}
+                onRemarkHover={props.onRemarkHover}
+                scrollToMessage={scrollToMessage}
+                emphasizedRemarkIds={emphasizedRemarkIds}
+                cursorSpaceContent={cursorSpaceContent}
+                showCursor={showCursor}
+                isInitialLoad={isInitialLoad}
+                handleSeparatorEnter={handleSeparatorEnter}
+                automatedTypingText={automatedTypingText}
+                isAutomatedTyping={isAutomatedTyping}
+                paragraphs={paragraphs}
+              />
+              {paragraph && (
+                <ParagraphSeparator
+                  id={`separator-after-${paragraph.id}`}
+                  onEnter={(text) => handleSeparatorEnter(text, index + 1)}
+                  onFocus={() => setFocusedCursorSpaceId(`separator-after-${paragraph.id}`)}
+                  isFocused={focusedCursorSpaceId === `separator-after-${paragraph.id}`}
+                  isLast={index === paragraphs.length - 1}
+                  isDisabled={newlyPlacedSentence !== null}
+                />
+              )}
+            </React.Fragment>
           ))}
         </div>
       </div>
