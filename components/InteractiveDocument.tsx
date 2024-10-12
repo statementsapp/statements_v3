@@ -403,7 +403,8 @@ const ParagraphSeparator: React.FC<{
   isFocused: boolean
   isLast: boolean
   isDisabled?: boolean
-}> = React.memo(({ id, onEnter, onFocus, isFocused, isLast, isDisabled }) => {
+  setActiveSeparator: (id: string) => void
+}> = React.memo(({ id, onEnter, onFocus, isFocused, isLast, isDisabled, setActiveSeparator }) => {
   const [isHovered, setIsHovered] = useState(false)
   const [text, setText] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -421,9 +422,10 @@ const ParagraphSeparator: React.FC<{
   }
 
   const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault()
-    onFocus()
-    inputRef.current?.focus()
+    e.preventDefault();
+    onFocus();
+    setActiveSeparator(id);
+    inputRef.current?.focus();
   }
 
   useEffect(() => {
@@ -914,6 +916,9 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   // Add this near the top of the InteractiveDocument component
   const [automatedTypingText, setAutomatedTypingText] = useState<string>('');
   const [isAutomatedTyping, setIsAutomatedTyping] = useState<boolean>(false);
+
+  // Add this near the top of the file, with other state declarations
+  const [activeSeparatorId, setActiveSeparatorId] = useState<string | null>(null);
 
   useImperativeHandle(ref, () => ({
     handleNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => {
@@ -1469,43 +1474,48 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     return newSentenceId;
   }, [paragraphs, addRemark, setFocusedCursorSpaceId]);
 
+  // Update the handleSeparatorEnter function
   const handleSeparatorEnter = useCallback((text: string, index: number) => {
-    const { paragraphId, sentenceId } = addParagraph(index, text);
-    
-    // Focus on the cursor space after the new sentence
-    const newCursorSpaceId = `${paragraphId}-0`;
-    setFocusedCursorSpaceId(newCursorSpaceId);
-    
-    props.onNewContent(text, 'user', 'sentence', sentenceId);
-    
-    // Clear the separator's content after adding the paragraph
-    const separatorId = `separator-after-${paragraphs[index - 1]?.id || 'first'}`;
-    const separatorElement = document.getElementById(separatorId);
-    if (separatorElement) {
-      const contentEditableSpan = separatorElement.querySelector('span[contenteditable]');
-      if (contentEditableSpan) {
-        contentEditableSpan.textContent = '';
-      }
-    }
-    
-    // Focus the cursor space after the new sentence
-    setTimeout(() => {
-      const cursorSpace = document.getElementById(newCursorSpaceId);
-      if (cursorSpace) {
-        const contentEditableSpan = cursorSpace.querySelector('span[contenteditable]');
+    if (activeSeparatorId) {
+      const { paragraphId, sentenceId } = addParagraph(index, text);
+      
+      // Focus on the cursor space after the new sentence
+      const newCursorSpaceId = `${paragraphId}-0`;
+      setFocusedCursorSpaceId(newCursorSpaceId);
+      
+      props.onNewContent(text, 'user', 'sentence', sentenceId);
+      
+      // Clear the separator's content after adding the paragraph
+      const separatorElement = document.getElementById(activeSeparatorId);
+      if (separatorElement) {
+        const contentEditableSpan = separatorElement.querySelector('span[contenteditable]');
         if (contentEditableSpan) {
-          (contentEditableSpan as HTMLElement).focus();
-          // Place the cursor at the end of the content
-          const range = document.createRange();
-          const sel = window.getSelection();
-          range.selectNodeContents(contentEditableSpan);
-          range.collapse(false);
-          sel?.removeAllRanges();
-          sel?.addRange(range);
+          contentEditableSpan.textContent = '';
         }
       }
-    }, 0);
-  }, [addParagraph, setFocusedCursorSpaceId, props.onNewContent, paragraphs]);
+      
+      // Reset the active separator
+      setActiveSeparatorId(null);
+      
+      // Focus the cursor space after the new sentence
+      setTimeout(() => {
+        const cursorSpace = document.getElementById(newCursorSpaceId);
+        if (cursorSpace) {
+          const contentEditableSpan = cursorSpace.querySelector('span[contenteditable]');
+          if (contentEditableSpan) {
+            (contentEditableSpan as HTMLElement).focus();
+            // Place the cursor at the end of the content
+            const range = document.createRange();
+            const sel = window.getSelection();
+            range.selectNodeContents(contentEditableSpan);
+            range.collapse(false);
+            sel?.removeAllRanges();
+            sel?.addRange(range);
+          }
+        }
+      }, 0);
+    }
+  }, [addParagraph, setFocusedCursorSpaceId, props.onNewContent, activeSeparatorId]);
 
   // Update the useImperativeHandle hook
   useImperativeHandle(ref, () => ({
@@ -1516,31 +1526,88 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     addParagraphAfterSentence,
   }));
 
+  // Update the AutomatedAction type
+  type AutomatedAction = {
+    type: 'addSentence';
+    text: string;
+    on: 'lastCursorSpace' | 'afterPrevious' | { sentenceId: string };
+  };
+
   // Update the performAutomatedActions function
-  const performAutomatedActions = useCallback(() => {
-    const newSentence = "That the life of Man is but a dream has been sensed by many a one, and I too am never free of the feeling.";
-    let index = 0;
+  const performAutomatedActions = useCallback((actions: AutomatedAction[]) => {
+    let actionIndex = 0;
+    let lastAddedSentenceId: string | null = null;
 
-    setIsAutomatedTyping(true);
-    setAutomatedTypingText('');
+    const executeNextAction = () => {
+      if (actionIndex < actions.length) {
+        const action = actions[actionIndex];
+        let index = 0;
 
-    const typeCharacter = () => {
-      if (index < newSentence.length) {
-        setAutomatedTypingText(newSentence.slice(0, index + 1));
-        index++;
-        setTimeout(typeCharacter, 50);
-      } else {
-        setTimeout(() => {
-          const lastParagraph = paragraphs[paragraphs.length - 1];
-          handleCursorSpaceEnter(newSentence, lastParagraph.id, lastParagraph.sentences.length, false);
-          setAutomatedTypingText('');
-          setIsAutomatedTyping(false);
-        }, 500);
+        setIsAutomatedTyping(true);
+        setAutomatedTypingText('');
+
+        const typeCharacter = () => {
+          if (index < action.text.length) {
+            setAutomatedTypingText(action.text.slice(0, index + 1));
+            index++;
+            setTimeout(typeCharacter, 50);
+          } else {
+            setTimeout(() => {
+              let newSentenceId: string | null = null;
+              let targetParagraphId: string | null = null;
+              let targetIndex: number = -1;
+
+              if (action.on === 'lastCursorSpace') {
+                const lastParagraph = paragraphs[paragraphs.length - 1];
+                targetParagraphId = lastParagraph.id;
+                targetIndex = lastParagraph.sentences.length;
+              } else if (action.on === 'afterPrevious' && lastAddedSentenceId) {
+                // Find the paragraph and index of the last added sentence
+                for (const paragraph of paragraphs) {
+                  const sentenceIndex = paragraph.sentences.findIndex(s => s.id === lastAddedSentenceId);
+                  console.log('sentenceIndex for second:', sentenceIndex);
+                  if (sentenceIndex !== -1) {
+                    targetParagraphId = paragraph.id;
+                    targetIndex = sentenceIndex + 1; // Add after the last added sentence
+                    break;
+                  }
+                }
+              } else if (typeof action.on === 'object' && 'sentenceId' in action.on) {
+                // Logic for adding after a specific sentence
+                for (const paragraph of paragraphs) {
+                  const sentenceIndex = paragraph.sentences.findIndex(s => s.id === action.on.sentenceId);
+                  if (sentenceIndex !== -1) {
+                    targetParagraphId = paragraph.id;
+                    targetIndex = sentenceIndex + 1; // Add after the found sentence
+                    break;
+                  }
+                }
+              }
+
+              if (targetParagraphId && targetIndex !== -1) {
+                newSentenceId = addSentence(action.text, targetParagraphId, targetIndex);
+                if (newSentenceId) {
+                  lastAddedSentenceId = newSentenceId;
+                  console.log('Added sentence with ID:', newSentenceId, 'to paragraph:', targetParagraphId, 'at index:', targetIndex);
+                }
+              } else {
+                console.error('Target paragraph or index not found for action:', action);
+              }
+
+              setAutomatedTypingText('');
+              setIsAutomatedTyping(false);
+              actionIndex++;
+              executeNextAction();
+            }, 500);
+          }
+        };
+
+        setTimeout(typeCharacter, 500);
       }
     };
 
-    setTimeout(typeCharacter, 500);
-  }, [paragraphs, handleCursorSpaceEnter]);
+    executeNextAction();
+  }, [paragraphs, addSentence, setIsAutomatedTyping, setAutomatedTypingText]);
 
   useEffect(() => {
     if (isInitialLoad) {
@@ -1571,6 +1638,23 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     }
   }, [focusedCursorSpaceId, cursorSpaceContent]);
 
+  // Update the handleAutomatedActionsClick function
+  const handleAutomatedActionsClick = () => {
+    const automatedActions: AutomatedAction[] = [
+      { 
+        type: 'addSentence', 
+        text: "That the life of Man is but a dream has been sensed by many a one, and I too am never free of the feeling.",
+        on: 'lastCursorSpace'
+      },
+      { 
+        type: 'addSentence', 
+        text: "When I look upon the limitations of the active and inquiring powers of man; when I see how all our energies are wasted upon providing for mere necessities, which again have no further end than to prolong a wretched existence;",
+        on: 'afterPrevious'
+      },
+    ];
+    performAutomatedActions(automatedActions);
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
       <div 
@@ -1579,9 +1663,9 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
         ref={documentRef}
       >
         <div className="document-content">
-          {/* Replace the Button component with a simple HTML button */}
+          {/* Update the button onClick handler */}
           <button 
-            onClick={performAutomatedActions}
+            onClick={handleAutomatedActionsClick}
             className="mb-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
           >
             Perform Automated Actions
@@ -1604,6 +1688,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
             isFocused={focusedCursorSpaceId === `separator-before-first`}
             isLast={false}
             isDisabled={newlyPlacedSentence !== null}
+            setActiveSeparator={setActiveSeparatorId}
           />
 
           {paragraphs.map((paragraph, index) => (
@@ -1651,6 +1736,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
                   isFocused={focusedCursorSpaceId === `separator-after-${paragraph.id}`}
                   isLast={index === paragraphs.length - 1}
                   isDisabled={newlyPlacedSentence !== null}
+                  setActiveSeparator={setActiveSeparatorId}
                 />
               )}
             </React.Fragment>
