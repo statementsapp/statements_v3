@@ -6,26 +6,10 @@ import { HTML5Backend } from 'react-dnd-html5-backend'
 import { generateRandomSentence } from '../utils/sentenceGenerator' // You'll need to create this utility function
 import { Message } from './Messenger' // Remove MessengerProps from this import
 import { Check } from 'lucide-react'
-
-type Remark = {
-  id: string;
-  text: string;
-  sentenceId: string;
-  rejoined: boolean;
-}
-
-type Sentence = {
-  id: string
-  sentenceId: string
-  text: string
-  remarks: Remark[]
-  remarkColor?: string
-}
-
-type Paragraph = {
-  id: string
-  sentences: Sentence[]
-}
+import { generateConstructiveCriticism } from '../utils/openai';
+import { CursorSpace } from './CursorSpace';
+import DraggableSentence from './DraggableSentence'
+import { Sentence, Paragraph, Remark } from '../types/documentTypes'
 
 // Add this custom hook at the top of the file, outside of any component
 function useDebounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
@@ -49,124 +33,6 @@ type DragItem = {
   paragraphId: string
   index: number
 }
-
-const CursorSpace = React.forwardRef<
-  HTMLSpanElement,
-  {
-    id: string
-    onEnter: (text: string) => void
-    onFocus: () => void
-    isFocused: boolean
-    isFirst: boolean
-    isLast: boolean
-    showSolidCursor: boolean
-    onMouseEnter?: () => void
-    onMouseLeave?: () => void
-    onClick?: () => void
-    isSeparator?: boolean
-    isDisabled: boolean
-    remarks?: string[]
-    remarkColor?: string
-    isRemarkCursor?: boolean
-    isRemarkExpanded?: boolean
-    isRemarkHovered?: boolean
-    isRemarkEditing?: boolean
-    onInput: (text: string) => void
-    onReset: () => void
-    content: string
-  }
->(({ 
-  id,
-  onEnter,
-  onFocus,
-  isFocused,
-  isFirst,
-  isLast,
-  showSolidCursor,
-  onMouseEnter,
-  onMouseLeave,
-  onClick,
-  isSeparator,
-  isDisabled,
-  remarks = [],
-  remarkColor,
-  isRemarkCursor,
-  isRemarkExpanded,
-  isRemarkHovered,
-  isRemarkEditing,
-  onInput,
-  onReset,
-  content
-}, ref) => {
-  const inputRef = useRef<HTMLSpanElement>(null)
-
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.textContent = content;
-      // Move cursor to the end of the content
-      const range = document.createRange()
-      const sel = window.getSelection()
-      range.selectNodeContents(inputRef.current)
-      range.collapse(false)
-      sel?.removeAllRanges()
-      sel?.addRange(range)
-    }
-  }, [content])
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLSpanElement>) => {
-    if (e.key === 'Enter' && content.trim() !== '') {
-      e.preventDefault()
-      onEnter(content)
-      if (inputRef.current) {
-        inputRef.current.textContent = ''
-      }
-    }
-  }
-
-  const handleInput = (e: React.FormEvent<HTMLSpanElement>) => {
-    const newText = e.currentTarget.textContent || ''
-    onInput(newText)
-  }
-
-  const resetContent = () => {
-    if (inputRef.current) {
-      inputRef.current.textContent = ''
-    }
-    onReset()
-  }
-
-  useImperativeHandle(ref, () => ({
-    resetContent
-  }))
-
-  return (
-    <span 
-      id={id}
-      className={`inline ${isFirst ? '' : 'ml-[0.2em]'} ${isLast ? 'mr-0' : ''} ${isSeparator ? 'w-full' : ''}`}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      onClick={onClick}
-    >
-      <span
-        ref={inputRef}
-        contentEditable={!isDisabled}
-        suppressContentEditableWarning
-        spellCheck={false}
-        className={`inline-block min-w-[1ch] outline-none ${
-          isFocused ? 'bg-transparent' : ''
-        } ${isSeparator ? 'w-full' : ''} pl-[0.3em]`}
-        onInput={handleInput}
-        onKeyDown={handleKeyDown}
-        onFocus={onFocus}
-      >
-        {content}
-      </span>
-      {showSolidCursor && !isFocused && <span className="cursor">|</span>}
-    </span>
-  )
-})
-
-CursorSpace.displayName = 'CursorSpace'
 
 const SentenceComponent: React.FC<{
   sentence: Sentence
@@ -296,106 +162,6 @@ const SentenceComponent: React.FC<{
   )
 }
 
-const DraggableSentence: React.FC<{
-  sentence: Sentence
-  paragraphId: string
-  index: number
-  moveSentence: (draggedSentenceId: string, sourceParagraphId: string, targetParagraphId: string, targetIndex: number) => void
-  onClick: (e: React.MouseEvent) => void
-  isEditing: boolean
-  onInput: (text: string) => void
-  onSubmit: (text: string) => void
-  onMouseEnter: () => void
-  onMouseLeave: () => void
-  onRemarkMouseEnter: (sentenceId: string) => void
-  onRemarkMouseLeave: () => void
-  onRemarkClick: (sentenceId: string) => void
-}> = ({ sentence, paragraphId, index, moveSentence, onClick, isEditing, onInput, onSubmit, onMouseEnter, onMouseLeave, onRemarkMouseEnter, onRemarkMouseLeave, onRemarkClick }) => {
-  const ref = useRef<HTMLSpanElement>(null)
-  const [{ isDragging }, drag] = useDrag({
-    type: 'SENTENCE',
-    item: { type: 'SENTENCE', id: sentence.id, paragraphId, index } as DragItem,
-    collect: (monitor) => ({
-      isDragging: monitor.isDragging(),
-    }),
-  })
-
-  const [, drop] = useDrop({
-    accept: 'SENTENCE',
-    hover: (item: DragItem, monitor) => {
-      if (!ref.current) {
-        return
-      }
-      const dragIndex = item.index
-      const hoverIndex = index
-      const sourceParagraphId = item.paragraphId
-      const targetParagraphId = paragraphId
-
-      // Don't replace items with themselves
-      if (dragIndex === hoverIndex && sourceParagraphId === targetParagraphId) {
-        return
-      }
-
-      // Determine rectangle on screen
-      const hoverBoundingRect = ref.current?.getBoundingClientRect()
-
-      // Get vertical middle
-      const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2
-
-      // Determine mouse position
-      const clientOffset = monitor.getClientOffset()
-
-      // Get pixels to the top
-      const hoverClientY = clientOffset!.y - hoverBoundingRect.top
-
-      // Only perform the move when the mouse has crossed half of the items height
-      // When dragging downwards, only move when the cursor is below 50%
-      // When dragging upwards, only move when the cursor is above 50%
-
-      // Dragging downwards
-      if (dragIndex < hoverIndex && hoverClientY < hoverMiddleY) {
-        return
-      }
-
-      // Dragging upwards
-      if (dragIndex > hoverIndex && hoverClientY > hoverMiddleY) {
-        return
-      }
-
-      // Time to actually perform the action
-      moveSentence(item.id, sourceParagraphId, targetParagraphId, hoverIndex)
-
-      // Note: we're mutating the monitor item here!
-      // Generally it's better to avoid mutations,
-      // but it's good here for the sake of performance
-      // to avoid expensive index searches.
-      item.index = hoverIndex
-      item.paragraphId = targetParagraphId
-    },
-  })
-
-  drag(drop(ref))
-
-  return (
-    <span ref={ref} className={`inline ${isDragging ? 'opacity-50' : ''}`}>
-      <SentenceComponent
-        sentence={sentence}
-        onClick={onClick}
-        isEditing={isEditing}
-        onInput={onInput}
-        onSubmit={onSubmit}
-        isDragging={isDragging}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
-        onSentenceClick={onClick}
-        onRemarkClick={onRemarkClick}
-        onRemarkMouseEnter={onRemarkMouseEnter}
-        onRemarkMouseLeave={onRemarkMouseLeave}
-      />
-    </span>
-  )
-}
-
 const ParagraphSeparator: React.FC<{
   id: string
   onEnter: (text: string) => void
@@ -508,7 +274,7 @@ const ParagraphComponent: React.FC<{
   newlyPlacedSentenceId: string | null
   onNewContent: (text: string, sender: 'user' | 'ai', type: 'sentence' | 'remark', id: string, sentenceId?: string) => void
   handleCursorSpaceEnter: (text: string, paragraphId: string, index: number, isRemarkCursor: boolean) => void
-  addRemark: (sentenceId: string) => void
+  addAIRemark: (sentenceId: string) => void
   onCursorSpaceInput: (id: string, content: string) => void
   onCursorSpaceReset: (id: string) => void
   cursorSpaceRefs: React.MutableRefObject<{ [key: string]: { resetContent: () => void } }>
@@ -541,7 +307,7 @@ const ParagraphComponent: React.FC<{
   newlyPlacedSentenceId,
   onNewContent,
   handleCursorSpaceEnter,
-  addRemark,
+  addAIRemark,
   onCursorSpaceInput,
   onCursorSpaceReset,
   cursorSpaceRefs,
@@ -619,8 +385,7 @@ const ParagraphComponent: React.FC<{
     
     // Generate remarks for the edited sentence
     console.log("A")
-    setTimeout(() => addRemark(sentenceId), 2000)
-    setTimeout(() => addRemark(sentenceId), 5000)
+    setTimeout(() => addAIRemark(sentenceId), 2000)
 
     // Focus on the new cursor space after adding the sentence
     setTimeout(() => {
@@ -777,20 +542,6 @@ const ParagraphComponent: React.FC<{
               onRemarkClick={handleRemarkClick}
             />
             {/* Update this part to check if there are any unrejoined remarks */}
-            {sentence.remarks.length > 0 && sentence.remarks.some(remark => !remark.rejoined) && (
-              <>
-                {' '}
-                <span 
-                  className="text-white inline-block cursor-pointer" 
-                  style={{ verticalAlign: 'top', fontSize: '1em' }}
-                  onClick={() => handleRemarkClick(sentence.id)}
-                  onMouseEnter={() => onRemarkMouseEnter(sentence.id)}
-                  onMouseLeave={onRemarkMouseLeave}
-                >
-                  †
-                </span>
-              </>
-            )}
             <CursorSpace
               id={`${paragraph.id}-${index}`}
               onEnter={(text) => handleCursorSpaceEnter(text, paragraph.id, index + 1, false)}
@@ -849,6 +600,7 @@ interface InteractiveDocumentProps {
   onClearEmphasis: () => void;
   onClearInput: () => void; // Add this new prop
   inputRef: React.RefObject<HTMLInputElement>;
+  emphasizedMessageId: string | null;
 }
 
 const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, ref) => {
@@ -951,47 +703,127 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     return newRemarkId
   }, [onNewContent])
 
-  const addSentence = useCallback((text: string, paragraphId: string, index: number, isReplacingRemark: boolean = false) => {
-    const newSentenceId = Date.now().toString()
-    console.log('Sentence ID created:', newSentenceId)
-    setParagraphs((prevParagraphs) => {
-      const newParagraphs = [...prevParagraphs]
-      const paragraphIndex = newParagraphs.findIndex(p => p.id === paragraphId)
-      if (paragraphIndex !== -1) {
-        const newSentences = [...newParagraphs[paragraphIndex].sentences]
-        if (isReplacingRemark && index > 0) {
-          newSentences[index - 1] = { ...newSentences[index - 1], remarks: [], remarkColor: undefined }
-        }
-        newSentences.splice(index, 0, { 
-          id: newSentenceId, 
-          sentenceId: newSentenceId, // Add this line to set sentenceId
-          text, 
-          remarks: [], 
-          remarkColor: undefined 
-        })
-        newParagraphs[paragraphIndex] = { ...newParagraphs[paragraphIndex], sentences: newSentences }
+  const addAIRemark = useCallback(async (sentenceId: string) => {
+    console.log('addAIRemark called with sentenceId:', sentenceId);
+
+    // Use a function to get the latest state
+    const sentence = await new Promise<Sentence | undefined>(resolve => {
+      console.log("Resolving promise")
+      setParagraphs(currentParagraphs => {
+        console.log("Current paragraphs:", currentParagraphs);
+        const foundSentence = currentParagraphs.flatMap(p => p.sentences).find(s => s.id === sentenceId);
+        resolve(foundSentence);
+        return currentParagraphs; // Return the current state without changes
+      });
+    });
+
+    console.log('Found sentence:', sentence);
+
+    if (!sentence) {
+      console.error('Sentence not found:', sentenceId);
+      return null;
+    }
+
+    try {
+      console.log('Generating AI criticism for sentence:', sentence.text);
+      // Generate AI criticism
+      const response = await fetch('/api/generate-criticism', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sentence: sentence.text }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      return newParagraphs
-    })
+
+      const data = await response.json();
+      const newRemarkText = data.criticism;
+      console.log('Generated AI criticism:', newRemarkText);
+
+      const newRemarkId = `remark-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      const pastelColor = `hsl(${Math.random() * 360}, 100%, 80%)`;
+      
+      console.log('Updating paragraphs with new remark');
+      setParagraphs((prevParagraphs) => {
+        const updatedParagraphs = prevParagraphs.map(paragraph => ({
+          ...paragraph,
+          sentences: paragraph.sentences.map(s => 
+            s.id === sentenceId
+              ? { 
+                  ...s, 
+                  remarks: [...(s.remarks || []), { id: newRemarkId, text: newRemarkText, sentenceId, rejoined: false }],
+                  remarkColor: s.remarkColor || pastelColor
+                }
+              : s
+          )
+        }));
+        console.log('Updated paragraphs:', updatedParagraphs);
+        return updatedParagraphs;
+      });
+
+      console.log('Calling onNewContent with new remark');
+      props.onNewContent(newRemarkText, 'ai', 'remark', newRemarkId, sentenceId);
+      return newRemarkId;
+    } catch (error) {
+      console.error('Error generating AI remark:', error);
+      return null;
+    }
+  }, [paragraphs, props.onNewContent]);
+
+  const addSentence = useCallback((text: string, paragraphId: string, index: number, isReplacingRemark: boolean = false) => {
+    console.log('addSentence called with:', { text, paragraphId, index, isReplacingRemark });
+    const newSentenceId = Date.now().toString()
+    console.log('addSentence: Creating new sentence with ID:', newSentenceId, 'in paragraph:', paragraphId, 'at index:', index);
     
-    // Create the message here
-    onNewContent(text, 'user', 'sentence', newSentenceId, newSentenceId) // Add sentenceId here
+    return new Promise<string>((resolve) => {
+      setParagraphs((prevParagraphs) => {
+        const newParagraphs = [...prevParagraphs]
+        const paragraphIndex = newParagraphs.findIndex(p => p.id === paragraphId)
+        if (paragraphIndex !== -1) {
+          const newSentences = [...newParagraphs[paragraphIndex].sentences]
+          if (isReplacingRemark && index > 0) {
+            newSentences[index - 1] = { ...newSentences[index - 1], remarks: [], remarkColor: undefined }
+          }
+          newSentences.splice(index, 0, { 
+            id: newSentenceId, 
+            sentenceId: newSentenceId,
+            text, 
+            remarks: [], 
+            remarkColor: undefined 
+          })
+          newParagraphs[paragraphIndex] = { ...newParagraphs[paragraphIndex], sentences: newSentences }
+        }
+        console.log('addSentence: Updated paragraphs:', newParagraphs);
+        return newParagraphs
+      })
 
-    // Focus on the next cursor space after the new sentence
-    setTimeout(() => {
-      setFocusedCursorSpaceId(`${paragraphId}-${index}`)
-    }, 0)
+      console.log('addSentence: Calling onNewContent');
+      onNewContent(text, 'user', 'sentence', newSentenceId, newSentenceId)
 
-    // Set timeouts to add remarks after 2 seconds and 5 seconds
-    console.log("B")
-    setTimeout(() => addRemark(newSentenceId), 2000)
-    setTimeout(() => addRemark(newSentenceId), 5000)
+      console.log('addSentence: Setting focusedCursorSpaceId');
+      setTimeout(() => {
+        setFocusedCursorSpaceId(`${paragraphId}-${index}`)
+      }, 0)
 
-    return newSentenceId // Return the new sentence ID
-  }, [setFocusedCursorSpaceId, addRemark, onNewContent])
+      console.log('addSentence: Setting up AI remark timeouts');
+      setTimeout(() => {
+        console.log('Calling addAIRemark with newSentenceId:', newSentenceId);
+        addAIRemark(newSentenceId)
+      }, 2000)
+
+      console.log('addSentence: Returning newSentenceId:', newSentenceId);
+      resolve(newSentenceId)
+    })
+  }, [setFocusedCursorSpaceId, addAIRemark, onNewContent])
 
   const handleCursorSpaceEnter = useCallback((text: string, paragraphId: string, index: number, isRemarkCursor: boolean = false) => {
-    addSentence(text, paragraphId, index, isRemarkCursor)
+    addSentence(text, paragraphId, index, isRemarkCursor).then(() => {
+      // Any additional actions after the sentence is added
+    })
   }, [addSentence])
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
@@ -1032,7 +864,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
         setThresholdReached(false)
 
         // Remove this timeout as we're now handling it in the addSentence function
-        // setTimeout(() => addRemark(newSentence.id), 5000)
+        // setTimeout(() => addAIRemark(newSentence.id), 5000)
       }
       
       return newParagraphs
@@ -1055,8 +887,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     
     // Remove the onNewContent call from here
     // props.onNewContent(text, 'user', 'sentence', newSentenceId);
-    setTimeout(() => addRemark(newSentenceId), 2000);
-    setTimeout(() => addRemark(newSentenceId), 5000);
+    setTimeout(() => addAIRemark(newSentenceId), 2000);
     
     return { paragraphId: newParagraphId, sentenceId: newSentenceId };
   }, []);
@@ -1139,7 +970,6 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
 
   const handleNewMessage = useCallback((text: string) => {
     console.log("handleNewMessage called from interactive document")
-    let newSentenceId: string;
     if (selectedSentenceId) {
       // Find the paragraph and sentence index of the selected sentence
       let targetParagraphIndex = -1
@@ -1156,7 +986,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
         // Create a new paragraph with the new sentence
         const newParagraphId = Date.now().toString()
         console.log('New paragraph ID created in handleNewMessage:', newParagraphId)
-        newSentenceId = `${newParagraphId}-1`
+        const newSentenceId = `${newParagraphId}-1`
         console.log('New sentence ID created in handleNewMessage:', newSentenceId)
         const newSentence: Sentence = { id: newSentenceId, sentenceId: newSentenceId, text, remarks: [], remarkColor: undefined }
         const newParagraph: Paragraph = { id: newParagraphId, sentences: [newSentence] }
@@ -1178,28 +1008,40 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
 
         // Set timeouts to add remarks after 2 seconds and 5 seconds
         console.log("C")
-        setTimeout(() => addRemark(newSentenceId), 2000)
-        setTimeout(() => addRemark(newSentenceId), 5000)
+        setTimeout(() => addAIRemark(newSentenceId), 2000)
       } else {
         // If the selected sentence wasn't found, add the sentence to the end
-        newSentenceId = addSentence(text, paragraphs[paragraphs.length - 1].id, paragraphs[paragraphs.length - 1].sentences.length)
+        addSentence(text, paragraphs[paragraphs.length - 1].id, paragraphs[paragraphs.length - 1].sentences.length)
+          .then(newSentenceId => {
+            // Call onNewContent with the new sentence ID
+            onNewContent(text, 'user', 'sentence', newSentenceId)
+
+            // Add the new message to the messages state
+            setMessages(prevMessages => [...prevMessages, {
+              id: newSentenceId,
+              text,
+              sender: 'user',
+              type: 'sentence'
+            }])
+          })
       }
     } else {
       // If no sentence was selected, add the sentence to the end
-      newSentenceId = addSentence(text, paragraphs[paragraphs.length - 1].id, paragraphs[paragraphs.length - 1].sentences.length)
+      addSentence(text, paragraphs[paragraphs.length - 1].id, paragraphs[paragraphs.length - 1].sentences.length)
+        .then(newSentenceId => {
+          // Call onNewContent with the new sentence ID
+          onNewContent(text, 'user', 'sentence', newSentenceId)
+
+          // Add the new message to the messages state
+          setMessages(prevMessages => [...prevMessages, {
+            id: newSentenceId,
+            text,
+            sender: 'user',
+            type: 'sentence'
+          }])
+        })
     }
-
-    // Call onNewContent with the new sentence ID
-    onNewContent(text, 'user', 'sentence', newSentenceId)
-
-    // Add the new message to the messages state
-    setMessages(prevMessages => [...prevMessages, {
-      id: newSentenceId,
-      text,
-      sender: 'user',
-      type: 'sentence'
-    }])
-  }, [paragraphs, selectedSentenceId, addSentence, onNewContent, setFocusedCursorSpaceId, addRemark])
+  }, [paragraphs, selectedSentenceId, addSentence, onNewContent, setFocusedCursorSpaceId, addAIRemark])
 
   const handleMessageClick = useCallback((messageId: string, type: 'sentence' | 'remark') => {
     if (type === 'sentence') {
@@ -1382,11 +1224,10 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
 
     // Add remarks after 2 seconds and 5 seconds
     console.log("D")
-    setTimeout(() => addRemark(newSentenceId), 2000);
-    setTimeout(() => addRemark(newSentenceId), 5000);
+    setTimeout(() => addAIRemark(newSentenceId), 2000);
 
     return newSentenceId;
-  }, [addRemark]);
+  }, [addAIRemark]);
 
   // Update the addParagraphAfterSentence method
   const addParagraphAfterSentence = useCallback((sentenceId: string | null, text: string, rejoinedRemarkId?: string, newSentenceId?: string) => {
@@ -1448,8 +1289,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     
     // Add remarks after 2 seconds and 5 seconds
     console.log("E")
-    setTimeout(() => addRemark(newSentenceId!), 2000);
-    setTimeout(() => addRemark(newSentenceId!), 5000);
+    setTimeout(() => addAIRemark(newSentenceId!), 2000);
 
     // Set the cursor after the new sentence
     setTimeout(() => {
@@ -1472,7 +1312,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     }, 0);
 
     return newSentenceId;
-  }, [paragraphs, addRemark, setFocusedCursorSpaceId]);
+  }, [paragraphs, addAIRemark, setFocusedCursorSpaceId]);
 
   // Update the handleSeparatorEnter function
   const handleSeparatorEnter = useCallback((text: string, index: number) => {
@@ -1585,19 +1425,24 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
               }
 
               if (targetParagraphId && targetIndex !== -1) {
-                newSentenceId = addSentence(action.text, targetParagraphId, targetIndex);
-                if (newSentenceId) {
-                  lastAddedSentenceId = newSentenceId;
-                  console.log('Added sentence with ID:', newSentenceId, 'to paragraph:', targetParagraphId, 'at index:', targetIndex);
-                }
+                addSentence(action.text, targetParagraphId, targetIndex)
+                  .then(newSentenceId => {
+                    if (newSentenceId) {
+                      lastAddedSentenceId = newSentenceId;
+                      console.log('Added sentence with ID:', newSentenceId, 'to paragraph:', targetParagraphId, 'at index:', targetIndex);
+                    }
+                    setAutomatedTypingText('');
+                    setIsAutomatedTyping(false);
+                    actionIndex++;
+                    executeNextAction();
+                  })
               } else {
                 console.error('Target paragraph or index not found for action:', action);
+                setAutomatedTypingText('');
+                setIsAutomatedTyping(false);
+                actionIndex++;
+                executeNextAction();
               }
-
-              setAutomatedTypingText('');
-              setIsAutomatedTyping(false);
-              actionIndex++;
-              executeNextAction();
             }, 500);
           }
         };
@@ -1708,7 +1553,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
                 newlyPlacedSentenceId={newlyPlacedSentence?.id ?? null}
                 onNewContent={props.onNewContent}
                 handleCursorSpaceEnter={handleCursorSpaceEnter}
-                addRemark={addRemark}
+                addAIRemark={addAIRemark}
                 onCursorSpaceInput={handleCursorSpaceInput}
                 onCursorSpaceReset={handleCursorSpaceReset}
                 cursorSpaceRefs={cursorSpaceRefs}
