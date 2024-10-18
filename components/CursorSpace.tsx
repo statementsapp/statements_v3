@@ -72,6 +72,30 @@ export const CursorSpace = forwardRef<
       if (inputRef.current) {
         inputRef.current.textContent = '';
       }
+    } else if (e.key === 'Backspace' && content.trim() === '' && !isSeparator) {
+      e.preventDefault();
+      logPrecedingSentence();
+    }
+  };
+
+  const logPrecedingSentence = () => {
+    const currentElement = inputRef.current;
+    if (!currentElement) return;
+    console.log("Current element: ", currentElement)
+    let precedingText = '';
+    let currentNode: Node | null = currentElement.previousSibling;
+
+    while (currentNode) {
+      if (currentNode.nodeType === Node.ELEMENT_NODE && (currentNode as Element).classList.contains('sentence-separator')) {
+        break;
+      }
+      precedingText = currentNode.textContent + precedingText;
+      currentNode = currentNode.previousSibling;
+    }
+
+    const sentence = precedingText.trim();
+    if (sentence) {
+      console.log('Preceding sentence:', sentence);
     }
   };
 

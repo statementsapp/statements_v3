@@ -10,6 +10,7 @@ import { generateConstructiveCriticism } from '../utils/openai';
 import { CursorSpace } from './CursorSpace';
 import DraggableSentence from './DraggableSentence'
 import { Sentence, Paragraph, Remark } from '../types/documentTypes'
+import { Switch } from "@/components/ui/switch"
 
 // Add this custom hook at the top of the file, outside of any component
 function useDebounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
@@ -672,6 +673,9 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   // Add this near the top of the file, with other state declarations
   const [activeSeparatorId, setActiveSeparatorId] = useState<string | null>(null);
 
+  // Add this state near the top of the InteractiveDocument component
+  const [aiRemarksEnabled, setAiRemarksEnabled] = useState(false);
+
   useImperativeHandle(ref, () => ({
     handleNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => {
       // Implement the logic for handling new responses here
@@ -704,6 +708,8 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   }, [onNewContent])
 
   const addAIRemark = useCallback(async (sentenceId: string) => {
+    if (!aiRemarksEnabled) return null;
+
     console.log('addAIRemark called with sentenceId:', sentenceId);
 
     // Use a function to get the latest state
@@ -772,7 +778,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
       console.error('Error generating AI remark:', error);
       return null;
     }
-  }, [paragraphs, props.onNewContent]);
+  }, [paragraphs, props.onNewContent, aiRemarksEnabled]);
 
   const addSentence = useCallback((text: string, paragraphId: string, index: number, isReplacingRemark: boolean = false) => {
     console.log('addSentence called with:', { text, paragraphId, index, isReplacingRemark });
@@ -1500,6 +1506,11 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
     performAutomatedActions(automatedActions);
   };
 
+  // Add this function near other handler functions
+  const handleAiRemarksToggle = (checked: boolean) => {
+    setAiRemarksEnabled(checked);
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
       <div 
@@ -1515,6 +1526,17 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
           >
             Perform Automated Actions
           </button>
+
+          <div className="flex items-center space-x-2 mb-4">
+            <Switch
+              id="ai-remarks"
+              checked={aiRemarksEnabled}
+              onCheckedChange={handleAiRemarksToggle}
+            />
+            <label htmlFor="ai-remarks" className="text-sm font-medium">
+              AI Remarks {aiRemarksEnabled ? 'Enabled' : 'Disabled'}
+            </label>
+          </div>
 
           <h1
             className="text-3xl font-bold mb-4"
