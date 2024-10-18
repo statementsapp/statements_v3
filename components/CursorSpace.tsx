@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useRef, useEffect, forwardRef, useImperativeHandle, useState } from 'react';
 
 interface CursorSpaceProps {
   id: string;
@@ -22,6 +22,8 @@ interface CursorSpaceProps {
   onInput: (text: string) => void;
   onReset: () => void;
   content: string;
+  onDeleteSentence: (sentenceId: string, remarks: string[]) => void;
+  sentenceId: string;
 }
 
 export const CursorSpace = forwardRef<
@@ -48,10 +50,14 @@ export const CursorSpace = forwardRef<
   isRemarkEditing,
   onInput,
   onReset,
-  content
+  content,
+  onDeleteSentence,
+  sentenceId
 }, ref) => {
   const inputRef = useRef<HTMLSpanElement>(null);
   const containerRef = useRef<HTMLSpanElement>(null);
+  const [isInverted, setIsInverted] = useState(false);
+  const [originalColors, setOriginalColors] = useState<{ color: string; backgroundColor: string } | null>(null);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -76,7 +82,11 @@ export const CursorSpace = forwardRef<
     } else if (e.key === 'Backspace' && content.trim() === '' && !isSeparator) {
       e.preventDefault();
       
-      invertPrecedingSentenceColors();
+      if (isInverted) {
+        initiateSentenceDeletion();
+      } else {
+        invertPrecedingSentenceColors();
+      }
     }
   };
 
@@ -87,8 +97,40 @@ export const CursorSpace = forwardRef<
         const currentColor = window.getComputedStyle(precedingSentence).color;
         const currentBgColor = window.getComputedStyle(precedingSentence).backgroundColor;
         
+        setOriginalColors({ color: currentColor, backgroundColor: currentBgColor });
+        
         precedingSentence.style.color = 'black';
         precedingSentence.style.backgroundColor = currentColor;
+        setIsInverted(true);
+      }
+    }
+  };
+
+  const resetInvertedColors = () => {
+    if (containerRef.current && isInverted) {
+      const precedingSentence = containerRef.current.previousElementSibling as HTMLElement;
+      if (precedingSentence && originalColors) {
+        precedingSentence.style.color = originalColors.color;
+        precedingSentence.style.backgroundColor = originalColors.backgroundColor;
+        setIsInverted(false);
+        setOriginalColors(null);
+      }
+    }
+  };
+
+  const initiateSentenceDeletion = () => {
+    if (containerRef.current) {
+      const precedingSentence = containerRef.current.previousElementSibling as HTMLElement;
+      if (precedingSentence) {
+        // Remove the preceding sentence from the DOM
+        precedingSentence.remove();
+        
+        // Call the onDeleteSentence prop with the sentence ID and remarks
+        onDeleteSentence(sentenceId, remarks);
+        
+        // Reset the inverted colors state
+        setIsInverted(false);
+        setOriginalColors(null);
       }
     }
   };
@@ -109,6 +151,21 @@ export const CursorSpace = forwardRef<
     resetContent,
     invertPrecedingSentenceColors
   }));
+
+  useEffect(() => {
+    // Reset inverted colors on clickaway
+    const handleClickAway = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        resetInvertedColors();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickAway);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickAway);
+    };
+  }, [isInverted]);
 
   return (
     <span 
