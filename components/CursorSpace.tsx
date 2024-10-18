@@ -25,7 +25,7 @@ interface CursorSpaceProps {
 }
 
 export const CursorSpace = forwardRef<
-  { resetContent: () => void },
+  { resetContent: () => void; invertPrecedingSentenceColors: () => void },
   CursorSpaceProps
 >(({ 
   id,
@@ -51,6 +51,7 @@ export const CursorSpace = forwardRef<
   content
 }, ref) => {
   const inputRef = useRef<HTMLSpanElement>(null);
+  const containerRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -74,28 +75,21 @@ export const CursorSpace = forwardRef<
       }
     } else if (e.key === 'Backspace' && content.trim() === '' && !isSeparator) {
       e.preventDefault();
-      logPrecedingSentence();
+      
+      invertPrecedingSentenceColors();
     }
   };
 
-  const logPrecedingSentence = () => {
-    const currentElement = inputRef.current;
-    if (!currentElement) return;
-    console.log("Current element: ", currentElement)
-    let precedingText = '';
-    let currentNode: Node | null = currentElement.previousSibling;
-
-    while (currentNode) {
-      if (currentNode.nodeType === Node.ELEMENT_NODE && (currentNode as Element).classList.contains('sentence-separator')) {
-        break;
+  const invertPrecedingSentenceColors = () => {
+    if (containerRef.current) {
+      const precedingSentence = containerRef.current.previousElementSibling as HTMLElement;
+      if (precedingSentence) {
+        const currentColor = window.getComputedStyle(precedingSentence).color;
+        const currentBgColor = window.getComputedStyle(precedingSentence).backgroundColor;
+        
+        precedingSentence.style.color = 'black';
+        precedingSentence.style.backgroundColor = currentColor;
       }
-      precedingText = currentNode.textContent + precedingText;
-      currentNode = currentNode.previousSibling;
-    }
-
-    const sentence = precedingText.trim();
-    if (sentence) {
-      console.log('Preceding sentence:', sentence);
     }
   };
 
@@ -112,11 +106,13 @@ export const CursorSpace = forwardRef<
   };
 
   useImperativeHandle(ref, () => ({
-    resetContent
+    resetContent,
+    invertPrecedingSentenceColors
   }));
 
   return (
     <span 
+      ref={containerRef}
       id={id}
       className={`inline ${isFirst ? '' : 'ml-[0.2em]'} ${isLast ? 'mr-0' : ''} ${isSeparator ? 'w-full' : ''}`}
       onMouseEnter={onMouseEnter}
@@ -128,7 +124,7 @@ export const CursorSpace = forwardRef<
         contentEditable={!isDisabled}
         suppressContentEditableWarning
         spellCheck={false}
-        className={`inline-block min-w-[1ch] outline-none ${
+        className={`inline min-w-[1ch] outline-none ${
           isFocused ? 'bg-transparent' : ''
         } ${isSeparator ? 'w-full' : ''} pl-[0.3em]`}
         onInput={handleInput}

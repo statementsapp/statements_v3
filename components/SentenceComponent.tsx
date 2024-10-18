@@ -116,6 +116,7 @@ const SentenceComponent: React.FC<SentenceComponentProps> = ({
   return (
     <span
       ref={ref}
+      id={sentence.id} // Add this line to set the HTML id attribute
       className={`cursor-pointer inline ${isDragging ? 'opacity-50' : ''}`}
       onClick={handleClick}
       contentEditable={isEditing}
@@ -126,7 +127,7 @@ const SentenceComponent: React.FC<SentenceComponentProps> = ({
       onMouseLeave={onMouseLeave}
     >
       {localText}
-      {sentence.remarks.length > 0 && sentence.remarks.some(remark => !remark.rejoined) && (
+      {sentence.remarks.length > 0 && sentence.remarks.some((remark: any) => !remark.rejoined) && (
         <span 
           className="text-white inline-block cursor-pointer" 
           style={{ verticalAlign: 'top', fontSize: '1em' }}
