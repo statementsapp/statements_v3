@@ -174,7 +174,7 @@ const ParagraphSeparator: React.FC<{
 }> = React.memo(({ id, onEnter, onFocus, isFocused, isLast, isDisabled, setActiveSeparator }) => {
   const [isHovered, setIsHovered] = useState(false)
   const [text, setText] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
+  const spanRef = useRef<HTMLSpanElement>(null)
 
   const handleMouseEnter = () => {
     if (!isFocused) {
@@ -189,15 +189,15 @@ const ParagraphSeparator: React.FC<{
   }
 
   const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    onFocus();
-    setActiveSeparator(id);
-    inputRef.current?.focus();
+    e.preventDefault()
+    onFocus()
+    setActiveSeparator(id)
+    spanRef.current?.focus()
   }
 
   useEffect(() => {
-    if (isFocused && inputRef.current) {
-      inputRef.current.focus()
+    if (isFocused && spanRef.current) {
+      spanRef.current.focus()
     }
   }, [isFocused])
 
@@ -207,27 +207,35 @@ const ParagraphSeparator: React.FC<{
     }
   }, [isFocused])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setText(e.target.value)
+  const handleInput = (e: React.FormEvent<HTMLSpanElement>) => {
+    setText(e.currentTarget.textContent || '')
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && text.trim() !== '') {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLSpanElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      onEnter(text)
-      setText('')
+      const trimmedText = text.trim()
+      if (trimmedText !== '') {
+        onEnter(trimmedText)
+        setText('')
+        if (spanRef.current) {
+          spanRef.current.textContent = ''
+        }
+      }
     }
   }
 
-  // Add this new function to handle blur events
   const handleBlur = () => {
     setText('')
+    if (spanRef.current) {
+      spanRef.current.textContent = ''
+    }
   }
 
   return (
     <div 
       className={`w-full relative flex items-center cursor-text transition-all duration-300 ease-in-out ${
-        isFocused ? 'h-8 mt-[1px] mb-[1px]' : 'h-1 my-[1px]'
+        isFocused ? 'min-h-[2em] mt-[1px] mb-[1px]' : 'h-1 my-[1px]'
       }`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -240,19 +248,21 @@ const ParagraphSeparator: React.FC<{
           }`} 
         />
       )}
-      <input
-        ref={inputRef}
-        type="text"
-        value={text}
-        onChange={handleChange}
+      <span
+        ref={spanRef}
+        contentEditable={!isDisabled}
+        onInput={handleInput}
         onKeyDown={handleKeyDown}
-        onBlur={handleBlur} // Add this line
-        disabled={isDisabled}
-        spellCheck={false} // Add this line
+        onBlur={handleBlur}
+        spellCheck={false}
         className={`w-full bg-transparent outline-none ${
           isFocused ? 'opacity-100' : 'opacity-0'
-        } pl-[0.3em]`}
-        style={{ caretColor: isFocused ? 'auto' : 'transparent' }}
+        } pl-[0.3em] min-h-[1em] break-words whitespace-pre-wrap inline`}
+        style={{ 
+          caretColor: isFocused ? 'auto' : 'transparent',
+          display: 'inline',
+          verticalAlign: 'top'
+        }}
       />
     </div>
   )
