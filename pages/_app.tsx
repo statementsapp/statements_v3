@@ -1,11 +1,11 @@
 import type { AppProps } from 'next/app';
 import { useEffect } from 'react';
 
-// Define a type for the window object extension
+// Extend the existing NEXT_DATA interface
 declare global {
   interface Window {
-    __NEXT_DATA__?: {
-      props: {
+    __NEXT_DATA__: NEXT_DATA & {
+      props?: {
         pageProps: {
           openaiKey: string
         }
@@ -21,13 +21,15 @@ function MyApp({ Component, pageProps }: AppProps) {
       const data: { openaiKey: string } = await response.json();
       
       // Extend the window object
-      window.__NEXT_DATA__ = {
-        props: {
+      if (window.__NEXT_DATA__) {
+        window.__NEXT_DATA__.props = {
+          ...window.__NEXT_DATA__.props,
           pageProps: {
+            ...window.__NEXT_DATA__.props?.pageProps,
             openaiKey: data.openaiKey,
           },
-        },
-      };
+        };
+      }
     }
     fetchOpenAIKey();
   }, []);
