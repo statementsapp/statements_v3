@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import Image from 'next/image'
 import DocumentWithMessenger from '@/components/DocumentWithMessenger'
 import { Switch } from "@/components/ui/switch"
 
