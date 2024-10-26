@@ -24,7 +24,7 @@ export default function Home() {
         {/* <Image src="/assets/images/logo.png" alt="Logo" width={50} height={50} /> */}
         <div className="ml-4">
           <h1 className="text-5xl">Statements</h1>
-          <h2 className="text-2xl mt-1 ml-2">Write directly by chat</h2>
+          {/* <h2 className="text-2xl mt-1 ml-2">Write directly by chat</h2> */}
         </div>
       </div>
       <div className="absolute top-4 right-4 z-10 flex items-center space-x-2">
@@ -49,6 +49,7 @@ export default function Home() {
               <div className="aspect-w-16 aspect-h-9">
                 <video 
                   className="w-full h-full object-cover rounded-lg"
+          
                   autoPlay
                   muted
                   loop
