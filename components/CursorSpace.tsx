@@ -13,12 +13,6 @@ interface CursorSpaceProps {
   onClick?: () => void;
   isSeparator?: boolean;
   isDisabled: boolean;
-  remarks?: string[];
-  remarkColor?: string;
-  isRemarkCursor?: boolean;
-  isRemarkExpanded?: boolean;
-  isRemarkHovered?: boolean;
-  isRemarkEditing?: boolean;
   onInput: (text: string) => void;
   onReset: () => void;
   content: string;
@@ -40,12 +34,6 @@ export const CursorSpace = forwardRef<
   onClick,
   isSeparator,
   isDisabled,
-  remarks = [],
-  remarkColor,
-  isRemarkCursor,
-  isRemarkExpanded,
-  isRemarkHovered,
-  isRemarkEditing,
   onInput,
   onReset,
   content
@@ -85,8 +73,6 @@ export const CursorSpace = forwardRef<
       const precedingSentence = containerRef.current.previousElementSibling as HTMLElement;
       if (precedingSentence) {
         const currentColor = window.getComputedStyle(precedingSentence).color;
-        const currentBgColor = window.getComputedStyle(precedingSentence).backgroundColor;
-        
         precedingSentence.style.color = 'black';
         precedingSentence.style.backgroundColor = currentColor;
       }

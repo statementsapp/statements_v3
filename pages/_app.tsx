@@ -1,5 +1,6 @@
 import type { AppProps } from 'next/app';
 import { useEffect } from 'react';
+import type { NEXT_DATA } from 'next/dist/shared/lib/utils';
 
 // Extend the existing NEXT_DATA interface
 declare global {
