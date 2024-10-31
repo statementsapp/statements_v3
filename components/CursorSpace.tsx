@@ -62,9 +62,9 @@ export const CursorSpace = forwardRef<
         inputRef.current.textContent = '';
       }
     } else if (e.key === 'Backspace' && content.trim() === '' && !isSeparator) {
-      e.preventDefault();
+      // e.preventDefault();
       
-      invertPrecedingSentenceColors();
+      // invertPrecedingSentenceColors();
     }
   };
 
