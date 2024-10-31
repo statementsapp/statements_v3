@@ -12,7 +12,7 @@ export default function Home() {
     <main className="min-h-screen bg-[#2b2e36] text-white relative overflow-hidden font-['Arial']">
       <div className="absolute top-4 left-4 z-10 flex items-center">
         <div className="ml-4">
-          <h1 className="text-5xl">Statements</h1>
+          <h1 className="text-5xl">Statements <i>Margin Muse</i> - Argue a Defensible Theory Against an AI for Rapid Drafting</h1>
         </div>
       </div>
 

@@ -684,7 +684,7 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
   const [activeSeparatorId, setActiveSeparatorId] = useState<string | null>(null);
 
   // Add this state near the top of the InteractiveDocument component
-  const [aiRemarksEnabled, setAiRemarksEnabled] = useState(false);
+  const [aiRemarksEnabled, setAiRemarksEnabled] = useState(true);
 
   useImperativeHandle(ref, () => ({
     handleNewResponse: (text: string, respondingToId: string, respondingToType: 'sentence' | 'remark') => {
@@ -1530,12 +1530,12 @@ const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, re
       >
         <div className="document-content">
           {/* Update the button onClick handler */}
-          <button 
+          {/* <button 
             onClick={handleAutomatedActionsClick}
             className="mb-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
           >
             Perform Automated Actions
-          </button>
+          </button> */}
 
           <div className="flex items-center space-x-2 mb-4">
             <Switch
