@@ -10,6 +10,10 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#2b2e36] text-white relative overflow-hidden font-['Arial']">
+      <span id="forkongithub">
+        <a href="https://github.com/statementsapp/statements">Fork us on GitHub</a>
+      </span>
+      
       <div className="absolute top-4 left-4 z-10 flex items-center">
         <div className="ml-4">
           <h1 className="text-5xl">Statements <i>Margin Muse</i> <span className="text-3xl">Argue a Defensible Theory Against an AI for Rapid Drafting</span></h1>
