@@ -184,7 +184,7 @@ export default function DocumentWithMessenger({
   }, []);
 
   return (
-    <div className="flex justify-center h-screen bg-black text-white overflow-hidden" style="padding-top: 50px">
+    <div className="flex justify-center h-screen bg-black text-white overflow-hidden pb-[50px]">
       <div className="flex w-full max-w-7xl mx-auto">
         <div className="w-2/3 p-6 bg-black border-r border-gray-800 overflow-hidden" id="document-container" >
           <InteractiveDocument
