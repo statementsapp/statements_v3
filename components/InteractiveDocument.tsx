@@ -616,35 +616,35 @@ interface InteractiveDocumentProps {
 
 const InteractiveDocument = forwardRef<any, InteractiveDocumentProps>((props, ref) => {
   const { onNewContent, onContentClick, onNewResponse, onRemarkHover, onRemarkAction, onEmphasizeRemark, onRemarkClick, onDocumentClick } = props
-  const [title, setTitle] = useState('Untitled')
+  const [title, setTitle] = useState('Why Sentence Processing Is the Future of Collaboration')
   const [paragraphs, setParagraphs] = useState<Paragraph[]>([
     {
       id: '1',
       sentences: [
         { id: '1', sentenceId: '1', text: 'This is the first sentence of the first paragraph.', remarks: [], remarkColor: undefined },
-        { id: '2', sentenceId: '2', text: 'Here is the second sentence.', remarks: [], remarkColor: undefined },
-        { id: '3', sentenceId: '3', text: 'The third sentence follows.', remarks: [], remarkColor: undefined },
-        { id: '4', sentenceId: '4', text: 'This is the fourth and final sentence of the first paragraph.', remarks: [], remarkColor: undefined },
+        // { id: '2', sentenceId: '2', text: 'Here is the second sentence.', remarks: [], remarkColor: undefined },
+        // { id: '3', sentenceId: '3', text: 'The third sentence follows.', remarks: [], remarkColor: undefined },
+        // { id: '4', sentenceId: '4', text: 'This is the fourth and final sentence of the first paragraph.', remarks: [], remarkColor: undefined },
       ],
     },
-    {
-      id: '2',
-      sentences: [
-        { id: '5', sentenceId: '5', text: 'The second paragraph begins with this sentence.', remarks: [], remarkColor: undefined },
-        { id: '6', sentenceId: '6', text: 'Here is the second sentence of the second paragraph.', remarks: [], remarkColor: undefined },
-        { id: '7', sentenceId: '7', text: 'The third sentence continues the thought.', remarks: [], remarkColor: undefined },
-        { id: '8', sentenceId: '8', text: 'This final sentence concludes the second paragraph.', remarks: [], remarkColor: undefined },
-      ],
-    },
-    {
-      id: '3',
-      sentences: [
-        { id: '9', sentenceId: '9', text: 'The third paragraph begins with this sentence.', remarks: [], remarkColor: undefined },
-        { id: '10', sentenceId: '10', text: 'Look at this sentence', remarks: [], remarkColor: undefined },
-        { id: '11', sentenceId: '11', text: 'The third sentence continues the thought.', remarks: [], remarkColor: undefined },
-        { id: '12', sentenceId: '12', text: 'So much sentence and this is the final sentence of this paragraph.', remarks: [], remarkColor: undefined },
-      ],
-    },
+    // {
+    //   id: '2',
+    //   sentences: [
+    //     { id: '5', sentenceId: '5', text: 'The second paragraph begins with this sentence.', remarks: [], remarkColor: undefined },
+    //     { id: '6', sentenceId: '6', text: 'Here is the second sentence of the second paragraph.', remarks: [], remarkColor: undefined },
+    //     { id: '7', sentenceId: '7', text: 'The third sentence continues the thought.', remarks: [], remarkColor: undefined },
+    //     { id: '8', sentenceId: '8', text: 'This final sentence concludes the second paragraph.', remarks: [], remarkColor: undefined },
+    //   ],
+    // },
+    // {
+    //   id: '3',
+    //   sentences: [
+    //     { id: '9', sentenceId: '9', text: 'The third paragraph begins with this sentence.', remarks: [], remarkColor: undefined },
+    //     { id: '10', sentenceId: '10', text: 'Look at this sentence', remarks: [], remarkColor: undefined },
+    //     { id: '11', sentenceId: '11', text: 'The third sentence continues the thought.', remarks: [], remarkColor: undefined },
+    //     { id: '12', sentenceId: '12', text: 'So much sentence and this is the final sentence of this paragraph.', remarks: [], remarkColor: undefined },
+    //   ],
+    // },
   ])
   const [editingSentenceId, setEditingSentenceId] = useState<string | null>(null)
   const [focusedCursorSpaceId, setFocusedCursorSpaceId] = useState<string | null>(null)
